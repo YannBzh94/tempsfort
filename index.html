@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>TempsFort – prototype</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&family=Playfair+Display:wght@700&family=Caveat:wght@700&family=Bebas+Neue&family=Special+Elite&display=swap" rel="stylesheet">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#101114">
 <link rel="icon" href="icon-192.png">
@@ -32,7 +33,15 @@ input[type=range]{width:100%;height:40px;margin:0;accent-color:var(--ac)}
 .card button.pri{background:var(--ac)}
 .sub{background:var(--bg);border-radius:12px;padding:10px 12px;margin-top:10px}
 .tabs{display:flex;gap:4px;background:var(--s1);border:1px solid var(--bd);border-radius:14px;padding:4px;margin:12px 0 0}
-.tabs button{flex:1;min-width:0;border:0;background:none;border-radius:10px;font-size:14px;padding:0 2px;color:var(--mu)}
+.tabs{overflow-x:auto}
+.tabs button{flex:1 0 auto;border:0;background:none;border-radius:10px;font-size:13px;padding:0 6px;color:var(--mu)}
+.chips{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.chips button[aria-pressed=true]{border:2px solid var(--ac);font-weight:700}
+.sw{display:flex;gap:6px;flex-wrap:wrap}
+.sw button{width:44px;height:44px;min-height:0;padding:0;border-radius:22px;border:3px solid var(--bd)}
+.sw button[aria-pressed=true]{border-color:var(--ac);outline:2px solid var(--ac);outline-offset:2px}
+.chk{display:flex;align-items:center;gap:10px;min-height:46px;margin:6px 0}
+.chk input{width:22px;height:22px;accent-color:var(--ac)}
 .tabs button[aria-selected=true]{background:var(--tx);color:#101114;font-weight:700}
 .panel{margin-top:8px}
 .row{display:flex;gap:8px;align-items:center}
@@ -134,13 +143,22 @@ video#result{width:100%;max-height:50vh;border-radius:10px;background:#000;margi
       <p class="mu" id="curInfo"></p>
       <div class="row"><button id="bEarlier">Plus tôt</button><button id="bLater">Plus tard</button><button id="bRemove">Retirer</button></div>
     </div>
-    <div class="tabs" role="tablist" aria-label="Réglages de l'image sélectionnée">
-      <button role="tab" data-tab="motion" aria-selected="true">Mouvement</button>
+    <div class="tabs" role="tablist" aria-label="Réglages du film et de l'image sélectionnée">
+      <button role="tab" data-tab="style" aria-selected="true">Style</button>
+      <button role="tab" data-tab="motion" aria-selected="false">Mouvement</button>
       <button role="tab" data-tab="trans" aria-selected="false">Transition</button>
       <button role="tab" data-tab="text" aria-selected="false">Texte</button>
-      <button role="tab" data-tab="adjust" aria-selected="false">Ajuster</button>
+      <button role="tab" data-tab="adjust" aria-selected="false">Image</button>
     </div>
-    <div class="card panel" id="p-motion">
+    <div class="card panel" id="p-style">
+      <h2>Style suggéré</h2>
+      <p id="styleSug"></p>
+      <button class="pri" id="bStyleSug">Appliquer la suggestion</button>
+      <h2>Tous les styles</h2>
+      <div class="chips" id="styleList"></div>
+      <p class="mu">Un style règle d'un coup les transitions, les mouvements, l'effet photo et l'apparence des textes de tout le film. Vous pouvez ensuite tout modifier image par image dans les autres onglets.</p>
+    </div>
+    <div class="card panel" id="p-motion" hidden>
       <h2>Mouvement dans l'image</h2>
       <select id="iMotion" aria-label="Mouvement"><option value="none">Aucun</option><option value="in">Zoom avant</option><option value="out">Zoom arrière</option><option value="left">Vers la gauche</option><option value="right">Vers la droite</option><option value="up">Vers le haut</option><option value="down">Vers le bas</option></select>
       <h2>Pour tout le film</h2>
@@ -148,21 +166,30 @@ video#result{width:100%;max-height:50vh;border-radius:10px;background:#000;margi
     </div>
     <div class="card panel" id="p-trans" hidden>
       <h2>Transition à l'arrivée de l'image</h2>
-      <select id="iTrans" aria-label="Transition"><option value="none">Aucune</option><option value="fade">Fondu</option><option value="slide">Glissement</option><option value="zoom">Zoom</option><option value="wipe">Volet</option><option value="black">Fondu au noir</option></select>
+      <select id="iTrans" aria-label="Transition"><option value="none">Aucune</option><option value="fade">Fondu</option><option value="black">Fondu au noir</option><option value="flash">Flash blanc</option><option value="blur">Flou</option><option value="slide">Glissement horizontal</option><option value="slideup">Glissement vertical</option><option value="zoom">Zoom avant</option><option value="zoomout">Zoom arrière</option><option value="wipe">Volet</option><option value="iris">Iris (cercle)</option><option value="spin">Rotation</option></select>
       <label for="iTdur">Durée : <span id="oTdur">0,5</span> s</label>
       <input id="iTdur" type="range" min="0.2" max="1.5" step="0.1" value="0.5">
       <h2>Pour tout le film</h2>
-      <button id="bTransAll" style="width:100%">Appliquer à toutes les transitions</button>
+      <div class="row"><button id="bTransAll">Appliquer à toutes</button><button id="bTransVar">Varier automatiquement</button></div>
     </div>
     <div class="card panel" id="p-text" hidden>
       <h2>Texte sur l'image</h2>
       <input id="iText" type="text" placeholder="Texte affiché sur cette image" aria-label="Texte">
-      <div class="row" style="margin-top:8px">
-        <div><label for="iTfx">Effet</label><select id="iTfx"><option value="none">Sans effet</option><option value="fade">Fondu</option><option value="slide">Glissement</option><option value="zoom">Zoom</option><option value="type">Machine à écrire</option></select></div>
+      <h2>Apparence</h2>
+      <div class="sw" id="tColors" role="group" aria-label="Couleur du texte"></div>
+      <div class="row" style="margin-top:4px">
+        <div><label for="iTfont">Police</label><select id="iTfont"></select></div>
+        <div><label for="iTsize">Taille</label><select id="iTsize"><option value="s">Petite</option><option value="m">Moyenne</option><option value="l">Grande</option></select></div>
+      </div>
+      <div class="row">
+        <div><label for="iTdeco">Habillage</label><select id="iTdeco"><option value="outline">Contour</option><option value="shadow">Ombre</option><option value="band">Bandeau</option><option value="plain">Aucun</option></select></div>
         <div><label for="iTpos">Position</label><select id="iTpos"><option value="top">Haut</option><option value="mid">Centre</option><option value="bottom">Bas</option></select></div>
       </div>
+      <label for="iTfx">Effet d'apparition</label>
+      <select id="iTfx"><option value="none">Sans effet</option><option value="fade">Fondu</option><option value="slide">Glissement</option><option value="zoom">Zoom</option><option value="bounce">Rebond</option><option value="type">Machine à écrire</option><option value="words">Mot à mot</option></select>
       <h2>Pour tout le film</h2>
-      <button id="bSugg" style="width:100%">Suggérer des textes (dates et lieux)</button>
+      <button id="bTextAll" style="width:100%">Appliquer cette apparence à tous les textes</button>
+      <button id="bSugg" style="width:100%;margin-top:8px">Suggérer des textes (dates et lieux)</button>
       <div class="sub" id="suggCard" hidden>
         <p class="mu" id="suggInfo"></p>
         <div id="sugg"></div>
@@ -170,8 +197,12 @@ video#result{width:100%;max-height:50vh;border-radius:10px;background:#000;margi
       </div>
     </div>
     <div class="card panel" id="p-adjust" hidden>
+      <h2>Effet photo</h2>
+      <select id="iFx" aria-label="Effet photo"></select>
+      <label class="chk"><input id="iVig" type="checkbox"> Bords assombris (vignette)</label>
+      <button id="bFxAll" style="width:100%">Appliquer à toutes les images</button>
       <div id="wTrim" hidden><h2>Extrait vidéo</h2><label for="iTrim">Début de l'extrait : <span id="oTrim">0</span> s</label><input id="iTrim" type="range" min="0" max="1" step="0.1" value="0"></div>
-      <h2>Image</h2>
+      <h2>Réglages fins</h2>
       <label for="iB">Luminosité</label><input id="iB" type="range" min="50" max="150" value="100">
       <label for="iC">Contraste</label><input id="iC" type="range" min="50" max="150" value="100">
       <label for="iS">Saturation</label><input id="iS" type="range" min="0" max="200" value="100">
@@ -214,6 +245,17 @@ const MOIS=['janvier','février','mars','avril','mai','juin','juillet','août','
 const S={media:[],sel:[],clips:[],audio:null,every:2,fmt:'9:16',res:720,cur:0,playing:false,t:0,view:'medias'};
 let uid=0,AC=null,src=null,recDest=null,clock0=0,raf=0,onEnded=null,exporting=false,listenSrc=null,outBlob=null,toastT=0;
 const cv=$('cv'),ctx=cv.getContext('2d');
+const FONTS={sys:{n:'Simple',f:'system-ui,-apple-system,"Segoe UI",Roboto,sans-serif',w:700},pop:{n:'Moderne',f:'"Poppins",system-ui,sans-serif',w:700},play:{n:'Élégante',f:'"Playfair Display",Georgia,serif',w:700},cav:{n:'Manuscrite',f:'"Caveat",cursive',w:700},bebas:{n:'Affiche',f:'"Bebas Neue",Impact,sans-serif',w:400},elite:{n:'Machine à écrire',f:'"Special Elite","Courier New",monospace',w:400}};
+const COLORS=[['#FFFFFF','Blanc'],['#FFD84A','Jaune'],['#FFB23E','Ambre'],['#FF6B6B','Corail'],['#7CE0A3','Vert'],['#6EC1FF','Bleu'],['#F3A6FF','Rose'],['#101114','Noir']];
+const FX={none:{n:'Aucun',f:''},bw:{n:'Noir et blanc',f:'grayscale(1) contrast(1.08)'},sepia:{n:'Sépia',f:'sepia(0.85)'},vintage:{n:'Vintage',f:'sepia(0.4) contrast(0.92) saturate(0.8) brightness(1.05)'},warm:{n:'Chaleureux',f:'saturate(1.15)',t:'rgba(255,150,40,0.14)'},cold:{n:'Froid',f:'saturate(0.9)',t:'rgba(60,130,255,0.14)'},vivid:{n:'Éclatant',f:'saturate(1.45) contrast(1.1)'},soft:{n:'Doux',f:'contrast(0.9) brightness(1.08) saturate(0.9)',t:'rgba(255,220,200,0.10)'},drama:{n:'Dramatique',f:'contrast(1.35) saturate(0.75) brightness(0.92)'}};
+const STYLES={
+  classique:{n:'Classique',d:'fondus, police élégante',trans:['fade'],motion:['in','out','left','right'],fx:'none',vig:false,t:{tfont:'play',tcolor:'#FFFFFF',tdeco:'shadow',tfx:'fade',tsize:'m',tpos:'bottom'}},
+  dynamique:{n:'Dynamique',d:'transitions vives, titres jaunes',trans:['slide','zoom','flash','spin','slideup'],motion:['in','out'],fx:'vivid',vig:false,t:{tfont:'bebas',tcolor:'#FFD84A',tdeco:'outline',tfx:'bounce',tsize:'l',tpos:'mid'}},
+  retro:{n:'Rétro',d:'teinte vintage, machine à écrire',trans:['black','fade'],motion:['in','left','right'],fx:'vintage',vig:true,t:{tfont:'elite',tcolor:'#FFFFFF',tdeco:'band',tfx:'type',tsize:'m',tpos:'bottom'}},
+  doux:{n:'Doux',d:'flous légers, écriture manuscrite',trans:['blur','fade'],motion:['in','out'],fx:'soft',vig:false,t:{tfont:'cav',tcolor:'#FFFFFF',tdeco:'shadow',tfx:'fade',tsize:'l',tpos:'bottom'}},
+  nb:{n:'Noir et blanc',d:'monochrome, bandeaux sobres',trans:['fade','iris'],motion:['in','out','left','right'],fx:'bw',vig:true,t:{tfont:'pop',tcolor:'#FFFFFF',tdeco:'band',tfx:'slide',tsize:'m',tpos:'bottom'}},
+  voyage:{n:'Voyage',d:'glissements, tons chauds',trans:['slide','wipe','zoomout'],motion:['left','right','in','up'],fx:'warm',vig:false,t:{tfont:'pop',tcolor:'#FFFFFF',tdeco:'outline',tfx:'words',tsize:'m',tpos:'top'}}
+};
 
 function toast(m){const t=$('toast');t.textContent=m;t.style.display='block';clearTimeout(toastT);toastT=setTimeout(()=>t.style.display='none',4200);}
 function mm(s){s=Math.max(0,s);return Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');}
@@ -356,7 +398,7 @@ function buildClips(){
   S.clips=S.sel.map(id=>{
     const m=mediaById(id),o=old.find(c=>c.mid===id);
     if(o)return o;
-    return {mid:id,dur:2.5,start:0,motion:m.kind==='image'?mot[k++%4]:'none',trans:'fade',tdur:0.5,text:'',tfx:'fade',tpos:'bottom',trimIn:0,b:100,c:100,s:100};
+    return {mid:id,dur:2.5,start:0,motion:m.kind==='image'?mot[k++%4]:'none',trans:'fade',tdur:0.5,text:'',tfx:'fade',tpos:'bottom',tcolor:'#FFFFFF',tfont:'sys',tdeco:'outline',tsize:'m',fx:'none',vig:false,trimIn:0,b:100,c:100,s:100};
   });
   S.cur=0;retime();
 }
@@ -391,7 +433,9 @@ function renderStrip(){
 function fillInspector(){
   const c=S.clips[S.cur];if(!c)return;const m=mediaById(c.mid);
   $('iMotion').value=c.motion;$('iTrans').value=c.trans;$('iTdur').value=c.tdur;$('oTdur').textContent=String(c.tdur).replace('.',',');
-  $('iText').value=c.text;$('iTfx').value=c.tfx;$('iTpos').value=c.tpos;$('iB').value=c.b;$('iC').value=c.c;$('iS').value=c.s;
+  $('iText').value=c.text;$('iTfx').value=c.tfx;$('iTpos').value=c.tpos;$('iTfont').value=c.tfont;$('iTsize').value=c.tsize;$('iTdeco').value=c.tdeco;$('iFx').value=c.fx;$('iVig').checked=c.vig;
+  document.querySelectorAll('#tColors button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.c===c.tcolor?'true':'false'));
+  styleUI();$('iB').value=c.b;$('iC').value=c.c;$('iS').value=c.s;
   $('curInfo').textContent='Image '+(S.cur+1)+' sur '+S.clips.length+' · '+(m.kind==='video'?'vidéo':'photo')+' du '+jour(m.date,true)+' · '+c.dur.toFixed(1).replace('.',',')+' s à l\u2019écran';
   $('wTrim').hidden=m.kind!=='video';
   if(m.kind==='video'){$('iTrim').max=Math.max(0,m.dur-0.5).toFixed(1);$('iTrim').value=c.trimIn;$('oTrim').textContent=c.trimIn.toFixed(1).replace('.',',');}
@@ -411,11 +455,19 @@ function drawMedia(c,lt,o){
     case 'up':z=1+A;oy=A/2*H*(1-2*p);break;
     case 'down':z=1+A;oy=-A/2*H*(1-2*p);break;
   }
-  const s=Math.max(W/m.w,H/m.h)*z*(o.scale||1),dw=m.w*s,dh=m.h*s;
-  ctx.globalAlpha=o.alpha===undefined?1:Math.max(0,Math.min(1,o.alpha));
-  ctx.filter=(c.b!==100||c.c!==100||c.s!==100)?'brightness('+c.b+'%) contrast('+c.c+'%) saturate('+c.s+'%)':'none';
-  try{ctx.drawImage(m.el,(W-dw)/2+ox+(o.dx||0),(H-dh)/2+oy,dw,dh);}catch(e){}
-  ctx.globalAlpha=1;ctx.filter='none';
+  const s=Math.max(W/m.w,H/m.h)*z*(o.scale||1),dw=m.w*s,dh=m.h*s,fx=FX[c.fx]||FX.none,parts=[];
+  if(fx.f)parts.push(fx.f);
+  if(c.b!==100||c.c!==100||c.s!==100)parts.push('brightness('+c.b+'%) contrast('+c.c+'%) saturate('+c.s+'%)');
+  if(o.blur)parts.push('blur('+o.blur.toFixed(1)+'px)');
+  const al=o.alpha===undefined?1:Math.max(0,Math.min(1,o.alpha));
+  ctx.save();
+  ctx.translate(W/2+(o.dx||0),H/2+(o.dy||0));if(o.rot)ctx.rotate(o.rot);
+  ctx.globalAlpha=al;ctx.filter=parts.join(' ')||'none';
+  try{ctx.drawImage(m.el,-dw/2+ox,-dh/2+oy,dw,dh);}catch(e){}
+  ctx.filter='none';
+  if(fx.t){ctx.fillStyle=fx.t;ctx.fillRect(-dw/2+ox,-dh/2+oy,dw,dh);}
+  if(c.vig){const R=Math.hypot(W,H)/2,g=ctx.createRadialGradient(0,0,R*0.45,0,0,R);g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(1,'rgba(0,0,0,0.62)');ctx.fillStyle=g;ctx.fillRect(-W/2,-H/2,W,H);}
+  ctx.restore();
 }
 function wrapText(txt,maxW){
   const words=txt.split(/\s+/),lines=[];let cur='';
@@ -425,18 +477,34 @@ function wrapText(txt,maxW){
 function drawText(c,lt){
   if(!c.text)return;
   const W=cv.width,H=cv.height,pi=Math.min(1,lt/0.6),e=1-Math.pow(1-pi,3);
-  let a=1,dy=0,sc=1,show=Infinity;
-  if(c.tfx==='fade')a=e;else if(c.tfx==='slide'){a=e;dy=(1-e)*H*0.05;}else if(c.tfx==='zoom'){a=e;sc=0.6+0.4*e;}
-  else if(c.tfx==='type')show=Math.ceil(c.text.length*Math.min(1,lt/Math.min(1.2,c.dur*0.5)));
+  let a=1,dy=0,sc=1,show=Infinity,nw=Infinity;
+  switch(c.tfx){
+    case 'fade':a=e;break;
+    case 'slide':a=e;dy=(1-e)*H*0.05;break;
+    case 'zoom':a=e;sc=0.6+0.4*e;break;
+    case 'bounce':{const p=Math.min(1,lt/0.8);a=Math.min(1,p*5);sc=Math.max(0.05,1-Math.exp(-6*p)*Math.cos(12*p));break;}
+    case 'type':show=Math.ceil(c.text.length*Math.min(1,lt/Math.min(1.2,c.dur*0.5)));break;
+    case 'words':nw=Math.ceil((lt+0.01)/Math.min(0.28,c.dur*0.5/Math.max(1,c.text.split(/\s+/).length)));break;
+  }
   const rem=c.dur-lt;if(rem<0.35)a*=Math.max(0,rem/0.35);
-  const fs=Math.round(W*0.07);
-  ctx.save();ctx.font='700 '+fs+'px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
-  const lines=wrapText(c.text,W*0.86),lh=fs*1.25,cy=c.tpos==='top'?H*0.14:c.tpos==='mid'?H/2:H*0.84;
+  const F=FONTS[c.tfont]||FONTS.sys,fs=Math.round(W*({s:0.052,m:0.07,l:0.095}[c.tsize]||0.07)),dark=c.tcolor==='#101114';
+  ctx.save();ctx.filter='none';ctx.font=F.w+' '+fs+'px '+F.f;
+  const lines=wrapText(c.text,W*0.86),lh=fs*1.3,cy=c.tpos==='top'?H*0.14:c.tpos==='mid'?H/2:H*0.84;
   ctx.globalAlpha=Math.max(0,Math.min(1,a));ctx.translate(W/2,cy+dy);ctx.scale(sc,sc);
-  ctx.textAlign='center';ctx.textBaseline='middle';ctx.lineJoin='round';ctx.lineWidth=fs*0.16;ctx.strokeStyle='rgba(0,0,0,0.78)';ctx.fillStyle='#fff';
-  let used=0;
-  lines.forEach((l,k)=>{let s=l;if(show!==Infinity){s=l.slice(0,Math.max(0,show-used));used+=l.length+1;}
-    if(!s)return;const y=(k-(lines.length-1)/2)*lh;ctx.strokeText(s,0,y);ctx.fillText(s,0,y);});
+  ctx.textAlign='center';ctx.textBaseline='middle';ctx.lineJoin='round';
+  let used=0,wused=0;
+  lines.forEach((l,k)=>{
+    let str=l;
+    if(show!==Infinity){str=l.slice(0,Math.max(0,show-used));used+=l.length+1;}
+    if(nw!==Infinity){const ws=l.split(' ');str=ws.slice(0,Math.max(0,nw-wused)).join(' ');wused+=ws.length;}
+    if(!str)return;
+    const y=(k-(lines.length-1)/2)*lh;
+    if(c.tdeco==='band'){const bw=ctx.measureText(l).width+fs*0.7;ctx.fillStyle=dark?'rgba(255,255,255,0.82)':'rgba(16,17,20,0.72)';ctx.fillRect(-bw/2,y-lh/2,bw,lh);}
+    if(c.tdeco==='shadow'){ctx.shadowColor=dark?'rgba(255,255,255,0.85)':'rgba(0,0,0,0.85)';ctx.shadowBlur=fs*0.28;ctx.shadowOffsetY=fs*0.05;}
+    if(c.tdeco==='outline'){ctx.lineWidth=fs*0.16;ctx.strokeStyle=dark?'rgba(255,255,255,0.85)':'rgba(0,0,0,0.78)';ctx.strokeText(str,0,y);}
+    ctx.fillStyle=c.tcolor||'#FFFFFF';ctx.fillText(str,0,y);
+    ctx.shadowColor='transparent';ctx.shadowBlur=0;ctx.shadowOffsetY=0;
+  });
   ctx.restore();
 }
 function render(t){
@@ -450,8 +518,14 @@ function render(t){
     switch(c.trans){
       case 'fade':drawMedia(prev,plt,{});drawMedia(c,lt,{alpha:q});break;
       case 'slide':drawMedia(prev,plt,{dx:-q*W});drawMedia(c,lt,{dx:(1-q)*W});break;
+      case 'slideup':drawMedia(prev,plt,{dy:-q*H});drawMedia(c,lt,{dy:(1-q)*H});break;
       case 'zoom':drawMedia(prev,plt,{});drawMedia(c,lt,{alpha:q,scale:1.35-0.35*q});break;
+      case 'zoomout':drawMedia(c,lt,{});drawMedia(prev,plt,{alpha:1-q,scale:1+0.4*q});break;
       case 'wipe':drawMedia(prev,plt,{});ctx.save();ctx.beginPath();ctx.rect(0,0,W*q,H);ctx.clip();drawMedia(c,lt,{});ctx.restore();break;
+      case 'iris':drawMedia(prev,plt,{});ctx.save();ctx.beginPath();ctx.arc(W/2,H/2,q*Math.hypot(W,H)/2,0,6.2832);ctx.clip();drawMedia(c,lt,{});ctx.restore();break;
+      case 'spin':drawMedia(prev,plt,{});drawMedia(c,lt,{alpha:q,rot:(q-1)*0.6,scale:1.45-0.45*q});break;
+      case 'flash':if(q<0.5)drawMedia(prev,plt,{});else drawMedia(c,lt,{});ctx.globalAlpha=q<0.5?2*q:2-2*q;ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);ctx.globalAlpha=1;break;
+      case 'blur':drawMedia(prev,plt,{blur:q*W/36});drawMedia(c,lt,{alpha:q,blur:(1-q)*W/36});break;
       case 'black':if(q<0.5)drawMedia(prev,plt,{alpha:1-2*q});else drawMedia(c,lt,{alpha:2*q-1});break;
     }
   }else drawMedia(c,lt,{});
@@ -556,6 +630,7 @@ function setAudio(a){
   $('aInfo').textContent='BPM · '+a.name+' · '+mm(a.buffer.duration)+' · '+a.beats.length+' temps repérés';
   $('bHalf').disabled=$('bDouble').disabled=$('bListen').disabled=false;
   if(S.clips.length)retime();
+  styleUI();
 }
 function stopListen(){if(listenSrc){try{listenSrc.stop();}catch(e){}listenSrc=null;$('bListen').textContent='Écouter';}}
 
@@ -602,6 +677,26 @@ function applySugg(){
     if(cb.checked&&tx.value.trim()){(parts[d.dataset.i]=parts[d.dataset.i]||[]).push(tx.value.trim());}});
   let n=0;Object.keys(parts).forEach(i=>{const c=S.clips[+i];if(c){c.text=parts[i].join(' · ');n++;}});
   $('suggCard').hidden=true;renderStrip();showFrame();toast(n+' texte(s) ajouté(s) au film.');
+}
+
+/* ---------- Styles ---------- */
+function suggestedStyle(){
+  if(!S.audio)return ['classique','pas de musique choisie'];
+  const b=Math.round(S.audio.bpm);
+  return b>=118?['dynamique','musique rapide, '+b+' BPM']:b<=96?['doux','musique lente, '+b+' BPM']:['voyage','musique de tempo moyen, '+b+' BPM'];
+}
+function styleUI(){
+  const sg=suggestedStyle();$('styleSug').textContent=STYLES[sg[0]].n+' ('+sg[1]+')';
+  document.querySelectorAll('#styleList button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.s===S.style?'true':'false'));
+}
+function applyStyle(k){
+  const st=STYLES[k];if(!st||!S.clips.length)return;let a=0,b=0;
+  S.clips.forEach((c,i)=>{const m=mediaById(c.mid);c.trans=st.trans[a++%st.trans.length];c.motion=m.kind==='image'?st.motion[b++%st.motion.length]:'none';c.fx=st.fx;c.vig=st.vig;Object.assign(c,st.t);});
+  S.style=k;fillInspector();showFrame();toast('Style « '+st.n+' » appliqué à tout le film.');
+}
+function loadFonts(){
+  if(!document.fonts||!document.fonts.load)return;
+  Object.keys(FONTS).forEach(k=>{if(k==='sys')return;const F=FONTS[k];document.fonts.load(F.w+' 40px '+F.f.split(',')[0]).then(()=>{if(!S.playing&&S.clips.length)render(S.t);}).catch(()=>{});});
 }
 
 /* ---------- Export ---------- */
@@ -666,6 +761,7 @@ $('bMotionVar').onclick=()=>{const mot=['in','left','out','right','up','down'];l
 $('iTrans').onchange=e=>{cur().trans=e.target.value;S.t=cur().start;showFrame();};
 $('iTdur').oninput=e=>{cur().tdur=+e.target.value;$('oTdur').textContent=e.target.value.replace('.',',');};
 $('bTransAll').onclick=()=>{S.clips.forEach(c=>{c.trans=cur().trans;c.tdur=cur().tdur;});toast('Transition appliquée partout.');};
+$('bTransVar').onclick=()=>{const tr=['fade','slide','zoom','iris','blur','slideup','wipe','spin','zoomout','flash'];S.clips.forEach((c,i)=>c.trans=tr[i%tr.length]);fillInspector();toast('Transitions variées sur tout le film.');};
 $('iText').oninput=e=>{cur().text=e.target.value;S.t=Math.max(S.t,cur().start+Math.min(1.3,cur().dur*0.7));if(S.t>=cur().start+cur().dur)S.t=cur().start+cur().dur*0.7;showFrame();};
 $('iText').onchange=renderStrip;
 $('iTfx').onchange=e=>{cur().tfx=e.target.value;if(cur().text)play(cur().start);};
@@ -703,9 +799,25 @@ $('every').onchange=e=>{S.every=+e.target.value;if(S.clips.length)retime();};
 $('fmt').onchange=e=>{S.fmt=e.target.value;sizeCanvas();};
 $('res').onchange=e=>{S.res=+e.target.value;sizeCanvas();};
 $('bExport').onclick=doExport;$('bSave').onclick=saveOut;
+COLORS.forEach(col=>{const b=document.createElement('button');b.style.background=col[0];b.dataset.c=col[0];b.setAttribute('aria-label',col[1]);b.setAttribute('aria-pressed','false');
+  b.onclick=()=>{cur().tcolor=col[0];fillInspector();showFrame();};$('tColors').appendChild(b);});
+Object.keys(FONTS).forEach(k=>$('iTfont').add(new Option(FONTS[k].n,k)));
+Object.keys(FX).forEach(k=>$('iFx').add(new Option(FX[k].n,k)));
+Object.keys(STYLES).forEach(k=>{const b=document.createElement('button');b.dataset.s=k;b.setAttribute('aria-pressed','false');b.style.cssText='height:auto;padding:8px 6px;line-height:1.25';
+  const t=document.createElement('span');t.textContent=STYLES[k].n;t.style.display='block';const d=document.createElement('span');d.className='mu';d.style.cssText='display:block;font-size:12px;font-weight:400';d.textContent=STYLES[k].d;
+  b.append(t,d);b.onclick=()=>applyStyle(k);$('styleList').appendChild(b);});
+$('bStyleSug').onclick=()=>applyStyle(suggestedStyle()[0]);
+$('iTfont').onchange=e=>{cur().tfont=e.target.value;showFrame();};
+$('iTsize').onchange=e=>{cur().tsize=e.target.value;showFrame();};
+$('iTdeco').onchange=e=>{cur().tdeco=e.target.value;showFrame();};
+$('bTextAll').onclick=()=>{const o=cur();S.clips.forEach(c=>{c.tcolor=o.tcolor;c.tfont=o.tfont;c.tsize=o.tsize;c.tdeco=o.tdeco;c.tfx=o.tfx;c.tpos=o.tpos;});showFrame();toast('Apparence appliquée à tous les textes.');};
+$('iFx').onchange=e=>{cur().fx=e.target.value;showFrame();};
+$('iVig').onchange=e=>{cur().vig=e.target.checked;showFrame();};
+$('bFxAll').onclick=()=>{const o=cur();S.clips.forEach(c=>{c.fx=o.fx;c.vig=o.vig;});showFrame();toast('Effet appliqué à toutes les images.');};
+loadFonts();
 document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('.tabs button').forEach(x=>x.setAttribute('aria-selected',x===b?'true':'false'));
-  ['motion','trans','text','adjust'].forEach(n=>{$('p-'+n).hidden=n!==b.dataset.tab;});
+  ['style','motion','trans','text','adjust'].forEach(n=>{$('p-'+n).hidden=n!==b.dataset.tab;});
 });
 modeUI();
 try{if('serviceWorker' in navigator&&location.protocol==='https:'&&window.top===window)navigator.serviceWorker.register('sw.js').catch(()=>{});}catch(e){}
