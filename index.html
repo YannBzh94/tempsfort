@@ -101,7 +101,7 @@ video#result{width:100%;max-height:50vh;border-radius:10px;background:#000;margi
       <div id="wDay" hidden><label for="autoDay">Jour</label><input id="autoDay" type="date"></div>
     </div>
     <label for="autoDur">Durée visée</label>
-    <select id="autoDur"><option value="30">30 secondes</option><option value="60" selected>1 minute</option><option value="120">2 minutes</option></select>
+    <select id="autoDur"><option value="15">15 secondes</option><option value="30">30 secondes</option><option value="60" selected>1 minute</option><option value="120">2 minutes</option></select>
     <button id="bAuto" style="width:100%;margin-top:12px">Choisir les médias pour moi</button>
     <p class="mu" id="autoInfo"></p>
   </div>
@@ -131,6 +131,8 @@ video#result{width:100%;max-height:50vh;border-radius:10px;background:#000;margi
     <div class="row" style="margin-top:8px"><button id="bHalf" disabled>Tempo ÷ 2</button><button id="bDouble" disabled>Tempo × 2</button><button id="bListen" disabled>Écouter</button></div>
     <label for="every">Changer d'image</label>
     <select id="every"><option value="1">À chaque temps</option><option value="2" selected>Tous les 2 temps</option><option value="4">Tous les 4 temps (une mesure)</option><option value="8">Toutes les 2 mesures</option></select>
+    <label for="pattern">Cadence</label>
+    <select id="pattern"><option value="reg">Régulière</option><option value="burst">Rafales (deux images longues, puis quatre rapides)</option><option value="accel">Accélération (lent au début, rapide à la fin)</option></select>
   </div>
 </section>
 
@@ -154,8 +156,18 @@ video#result{width:100%;max-height:50vh;border-radius:10px;background:#000;margi
       <h2>Style suggéré</h2>
       <p id="styleSug"></p>
       <button class="pri" id="bStyleSug">Appliquer la suggestion</button>
-      <h2>Tous les styles</h2>
+      <h2>Inspirés des réseaux sociaux</h2>
+      <div class="chips" id="styleList2"></div>
+      <h2>Styles classiques</h2>
       <div class="chips" id="styleList"></div>
+      <h2>Effets sur le rythme</h2>
+      <label class="chk"><input id="gPulse" type="checkbox"> Petit zoom sur chaque temps</label>
+      <label class="chk"><input id="gShake" type="checkbox"> Secousse sur chaque temps</label>
+      <label class="chk"><input id="gFlash" type="checkbox"> Flash à chaque changement d'image</label>
+      <h2>Ambiance</h2>
+      <label class="chk"><input id="gGrain" type="checkbox"> Grain de film</label>
+      <label class="chk"><input id="gLeak" type="checkbox"> Fuite de lumière</label>
+      <label class="chk"><input id="gBars" type="checkbox"> Bandes noires cinéma</label>
       <p class="mu">Un style règle d'un coup les transitions, les mouvements, l'effet photo et l'apparence des textes de tout le film. Vous pouvez ensuite tout modifier image par image dans les autres onglets.</p>
     </div>
     <div class="card panel" id="p-motion" hidden>
@@ -166,7 +178,7 @@ video#result{width:100%;max-height:50vh;border-radius:10px;background:#000;margi
     </div>
     <div class="card panel" id="p-trans" hidden>
       <h2>Transition à l'arrivée de l'image</h2>
-      <select id="iTrans" aria-label="Transition"><option value="none">Aucune</option><option value="fade">Fondu</option><option value="black">Fondu au noir</option><option value="flash">Flash blanc</option><option value="blur">Flou</option><option value="slide">Glissement horizontal</option><option value="slideup">Glissement vertical</option><option value="zoom">Zoom avant</option><option value="zoomout">Zoom arrière</option><option value="wipe">Volet</option><option value="iris">Iris (cercle)</option><option value="spin">Rotation</option></select>
+      <select id="iTrans" aria-label="Transition"><option value="none">Aucune</option><option value="fade">Fondu</option><option value="black">Fondu au noir</option><option value="flash">Flash blanc</option><option value="blur">Flou</option><option value="slide">Glissement horizontal</option><option value="slideup">Glissement vertical</option><option value="zoom">Zoom avant</option><option value="zoomout">Zoom arrière</option><option value="wipe">Volet</option><option value="iris">Iris (cercle)</option><option value="spin">Rotation</option><option value="blast">Zoom traversant</option><option value="whip">Panoramique filé</option><option value="glitch">Glitch</option></select>
       <label for="iTdur">Durée : <span id="oTdur">0,5</span> s</label>
       <input id="iTdur" type="range" min="0.2" max="1.5" step="0.1" value="0.5">
       <h2>Pour tout le film</h2>
@@ -186,7 +198,7 @@ video#result{width:100%;max-height:50vh;border-radius:10px;background:#000;margi
         <div><label for="iTpos">Position</label><select id="iTpos"><option value="top">Haut</option><option value="mid">Centre</option><option value="bottom">Bas</option></select></div>
       </div>
       <label for="iTfx">Effet d'apparition</label>
-      <select id="iTfx"><option value="none">Sans effet</option><option value="fade">Fondu</option><option value="slide">Glissement</option><option value="zoom">Zoom</option><option value="bounce">Rebond</option><option value="type">Machine à écrire</option><option value="words">Mot à mot</option></select>
+      <select id="iTfx"><option value="none">Sans effet</option><option value="fade">Fondu</option><option value="slide">Glissement</option><option value="zoom">Zoom</option><option value="bounce">Rebond</option><option value="type">Machine à écrire</option><option value="words">Mot à mot</option><option value="hi">Mot surligné</option></select>
       <h2>Pour tout le film</h2>
       <button id="bTextAll" style="width:100%">Appliquer cette apparence à tous les textes</button>
       <button id="bSugg" style="width:100%;margin-top:8px">Suggérer des textes (dates et lieux)</button>
@@ -242,13 +254,17 @@ video#result{width:100%;max-height:50vh;border-radius:10px;background:#000;margi
 "use strict";
 const $=id=>document.getElementById(id);
 const MOIS=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
-const S={media:[],sel:[],clips:[],audio:null,every:2,fmt:'9:16',res:720,cur:0,playing:false,t:0,view:'medias'};
+const S={g:{pulse:false,shake:false,flash:false,grain:false,leak:false,bars:false},pattern:'reg',media:[],sel:[],clips:[],audio:null,every:2,fmt:'9:16',res:720,cur:0,playing:false,t:0,view:'medias'};
 let uid=0,AC=null,src=null,recDest=null,clock0=0,raf=0,onEnded=null,exporting=false,listenSrc=null,outBlob=null,toastT=0;
 const cv=$('cv'),ctx=cv.getContext('2d');
 const FONTS={sys:{n:'Simple',f:'system-ui,-apple-system,"Segoe UI",Roboto,sans-serif',w:700},pop:{n:'Moderne',f:'"Poppins",system-ui,sans-serif',w:700},play:{n:'Élégante',f:'"Playfair Display",Georgia,serif',w:700},cav:{n:'Manuscrite',f:'"Caveat",cursive',w:700},bebas:{n:'Affiche',f:'"Bebas Neue",Impact,sans-serif',w:400},elite:{n:'Machine à écrire',f:'"Special Elite","Courier New",monospace',w:400}};
 const COLORS=[['#FFFFFF','Blanc'],['#FFD84A','Jaune'],['#FFB23E','Ambre'],['#FF6B6B','Corail'],['#7CE0A3','Vert'],['#6EC1FF','Bleu'],['#F3A6FF','Rose'],['#101114','Noir']];
 const FX={none:{n:'Aucun',f:''},bw:{n:'Noir et blanc',f:'grayscale(1) contrast(1.08)'},sepia:{n:'Sépia',f:'sepia(0.85)'},vintage:{n:'Vintage',f:'sepia(0.4) contrast(0.92) saturate(0.8) brightness(1.05)'},warm:{n:'Chaleureux',f:'saturate(1.15)',t:'rgba(255,150,40,0.14)'},cold:{n:'Froid',f:'saturate(0.9)',t:'rgba(60,130,255,0.14)'},vivid:{n:'Éclatant',f:'saturate(1.45) contrast(1.1)'},soft:{n:'Doux',f:'contrast(0.9) brightness(1.08) saturate(0.9)',t:'rgba(255,220,200,0.10)'},drama:{n:'Dramatique',f:'contrast(1.35) saturate(0.75) brightness(0.92)'}};
 const STYLES={
+  punch:{soc:1,n:'Punch',d:'coupes en rafales, zoom et flash sur le temps',trans:['blast','none','whip','none','glitch','none'],motion:['in','out','in'],fx:'vivid',vig:false,tdur:0.3,t:{tfont:'bebas',tcolor:'#FFFFFF',tdeco:'outline',tfx:'hi',tsize:'l',tpos:'mid'},g:{pulse:true,flash:true},pattern:'burst',every:2},
+  dump:{soc:1,n:'Photo dump',d:'coupes sèches à chaque temps, sans fioritures',trans:['none'],motion:['none'],fx:'none',vig:false,tdur:0.3,t:{tfont:'sys',tcolor:'#FFFFFF',tdeco:'outline',tfx:'none',tsize:'s',tpos:'bottom'},g:{pulse:true,grain:true},pattern:'reg',every:1},
+  cine:{soc:1,n:'Cinématique',d:'bandes noires, fondus lents, grain',trans:['fade','black'],motion:['in','left','right'],fx:'drama',vig:true,tdur:0.9,t:{tfont:'play',tcolor:'#FFFFFF',tdeco:'shadow',tfx:'fade',tsize:'s',tpos:'bottom'},g:{bars:true,grain:true},pattern:'reg',every:4},
+  rewind:{soc:1,n:'Rembobinage',d:'souvenir rétro : grain, lumière chaude, accélération',trans:['flash','fade','whip'],motion:['in','out'],fx:'vintage',vig:true,tdur:0.4,t:{tfont:'elite',tcolor:'#FFFFFF',tdeco:'band',tfx:'type',tsize:'m',tpos:'bottom'},g:{grain:true,leak:true,pulse:true},pattern:'accel',every:2},
   classique:{n:'Classique',d:'fondus, police élégante',trans:['fade'],motion:['in','out','left','right'],fx:'none',vig:false,t:{tfont:'play',tcolor:'#FFFFFF',tdeco:'shadow',tfx:'fade',tsize:'m',tpos:'bottom'}},
   dynamique:{n:'Dynamique',d:'transitions vives, titres jaunes',trans:['slide','zoom','flash','spin','slideup'],motion:['in','out'],fx:'vivid',vig:false,t:{tfont:'bebas',tcolor:'#FFD84A',tdeco:'outline',tfx:'bounce',tsize:'l',tpos:'mid'}},
   retro:{n:'Rétro',d:'teinte vintage, machine à écrire',trans:['black','fade'],motion:['in','left','right'],fx:'vintage',vig:true,t:{tfont:'elite',tcolor:'#FFFFFF',tdeco:'band',tfx:'type',tsize:'m',tpos:'bottom'}},
@@ -404,10 +420,12 @@ function buildClips(){
 }
 function retime(){
   const beats=S.audio?S.audio.beats:null,per=S.audio?60/S.audio.bpm:0;let bi=0,prev=0;
-  S.clips.forEach(c=>{
+  S.clips.forEach((c,idx)=>{
     const m=mediaById(c.mid);
     if(beats){
       let n=S.every;
+      if(S.pattern==='burst')n=Math.max(1,Math.round(S.every*[2,2,0.5,0.5,0.5,0.5][idx%6]));
+      else if(S.pattern==='accel'){const f=idx/Math.max(1,S.clips.length);n=Math.max(1,Math.round(S.every*(f<0.34?2:f<0.67?1:0.5)));}
       if(m.kind==='video')n=Math.max(S.every,Math.min(S.every*4,Math.floor((m.dur-c.trimIn)/per)));
       bi+=n;const end=bi<beats.length?beats[bi]:prev+n*per;
       c.dur=Math.max(0.2,end-prev);
@@ -476,36 +494,66 @@ function wrapText(txt,maxW){
 }
 function drawText(c,lt){
   if(!c.text)return;
-  const W=cv.width,H=cv.height,pi=Math.min(1,lt/0.6),e=1-Math.pow(1-pi,3);
-  let a=1,dy=0,sc=1,show=Infinity,nw=Infinity;
+  const W=cv.width,H=cv.height,pi=Math.min(1,lt/0.6),e=1-Math.pow(1-pi,3),nWords=Math.max(1,c.text.trim().split(/\s+/).length);
+  let a=1,dy=0,sc=1,show=Infinity,nw=Infinity,act=-1;
   switch(c.tfx){
     case 'fade':a=e;break;
     case 'slide':a=e;dy=(1-e)*H*0.05;break;
     case 'zoom':a=e;sc=0.6+0.4*e;break;
     case 'bounce':{const p=Math.min(1,lt/0.8);a=Math.min(1,p*5);sc=Math.max(0.05,1-Math.exp(-6*p)*Math.cos(12*p));break;}
     case 'type':show=Math.ceil(c.text.length*Math.min(1,lt/Math.min(1.2,c.dur*0.5)));break;
-    case 'words':nw=Math.ceil((lt+0.01)/Math.min(0.28,c.dur*0.5/Math.max(1,c.text.split(/\s+/).length)));break;
+    case 'words':nw=Math.ceil((lt+0.01)/Math.min(0.28,c.dur*0.5/nWords));break;
+    case 'hi':act=Math.min(nWords-1,Math.floor(lt/Math.max(0.15,Math.min(0.4,(c.dur-0.3)/nWords))));break;
   }
   const rem=c.dur-lt;if(rem<0.35)a*=Math.max(0,rem/0.35);
   const F=FONTS[c.tfont]||FONTS.sys,fs=Math.round(W*({s:0.052,m:0.07,l:0.095}[c.tsize]||0.07)),dark=c.tcolor==='#101114';
+  const col=c.tcolor||'#FFFFFF',hl=col==='#FFD84A'?'#FFFFFF':'#FFD84A';
   ctx.save();ctx.filter='none';ctx.font=F.w+' '+fs+'px '+F.f;
-  const lines=wrapText(c.text,W*0.86),lh=fs*1.3,cy=c.tpos==='top'?H*0.14:c.tpos==='mid'?H/2:H*0.84;
+  const lines=wrapText(c.text.trim(),W*0.86),lh=fs*1.3,cy=c.tpos==='top'?H*0.14:c.tpos==='mid'?H/2:H*0.84;
   ctx.globalAlpha=Math.max(0,Math.min(1,a));ctx.translate(W/2,cy+dy);ctx.scale(sc,sc);
   ctx.textAlign='center';ctx.textBaseline='middle';ctx.lineJoin='round';
+  const put=(str,x,y,color)=>{
+    if(c.tdeco==='shadow'){ctx.shadowColor=dark?'rgba(255,255,255,0.85)':'rgba(0,0,0,0.85)';ctx.shadowBlur=fs*0.28;ctx.shadowOffsetY=fs*0.05;}
+    if(c.tdeco==='outline'){ctx.lineWidth=fs*0.16;ctx.strokeStyle=dark?'rgba(255,255,255,0.85)':'rgba(0,0,0,0.78)';ctx.strokeText(str,x,y);}
+    ctx.fillStyle=color;ctx.fillText(str,x,y);
+    ctx.shadowColor='transparent';ctx.shadowBlur=0;ctx.shadowOffsetY=0;
+  };
   let used=0,wused=0;
   lines.forEach((l,k)=>{
+    const y=(k-(lines.length-1)/2)*lh,ws=l.split(' ');
     let str=l;
     if(show!==Infinity){str=l.slice(0,Math.max(0,show-used));used+=l.length+1;}
-    if(nw!==Infinity){const ws=l.split(' ');str=ws.slice(0,Math.max(0,nw-wused)).join(' ');wused+=ws.length;}
-    if(!str)return;
-    const y=(k-(lines.length-1)/2)*lh;
+    if(nw!==Infinity)str=ws.slice(0,Math.max(0,nw-wused)).join(' ');
+    if(!str){wused+=ws.length;return;}
     if(c.tdeco==='band'){const bw=ctx.measureText(l).width+fs*0.7;ctx.fillStyle=dark?'rgba(255,255,255,0.82)':'rgba(16,17,20,0.72)';ctx.fillRect(-bw/2,y-lh/2,bw,lh);}
-    if(c.tdeco==='shadow'){ctx.shadowColor=dark?'rgba(255,255,255,0.85)':'rgba(0,0,0,0.85)';ctx.shadowBlur=fs*0.28;ctx.shadowOffsetY=fs*0.05;}
-    if(c.tdeco==='outline'){ctx.lineWidth=fs*0.16;ctx.strokeStyle=dark?'rgba(255,255,255,0.85)':'rgba(0,0,0,0.78)';ctx.strokeText(str,0,y);}
-    ctx.fillStyle=c.tcolor||'#FFFFFF';ctx.fillText(str,0,y);
-    ctx.shadowColor='transparent';ctx.shadowBlur=0;ctx.shadowOffsetY=0;
+    if(act>=0){
+      const sp=ctx.measureText(' ').width;let x=-ctx.measureText(l).width/2;ctx.textAlign='left';
+      ws.forEach((w,j)=>{put(w,x,y,wused+j===act?hl:col);x+=ctx.measureText(w).width+sp;});
+      ctx.textAlign='center';
+    }else put(str,0,y,col);
+    wused+=ws.length;
   });
   ctx.restore();
+}
+function beatEnv(t){
+  if(!S.audio)return 0;
+  const b=S.audio.beats,tt=t%S.audio.buffer.duration;let lo=0,hi=b.length-1,k=-1;
+  while(lo<=hi){const m=(lo+hi)>>1;if(b[m]<=tt){k=m;lo=m+1;}else hi=m-1;}
+  return k<0?0:Math.exp(-(tt-b[k])*9);
+}
+let grainCv=null;
+function grain(W,H){
+  if(!grainCv){grainCv=document.createElement('canvas');grainCv.width=grainCv.height=192;const g=grainCv.getContext('2d'),im=g.createImageData(192,192);
+    for(let i=0;i<im.data.length;i+=4){const v=Math.random()*255;im.data[i]=im.data[i+1]=im.data[i+2]=v;im.data[i+3]=255;}g.putImageData(im,0,0);}
+  const z=Math.max(1,W/540),ox=Math.floor(Math.random()*192),oy=Math.floor(Math.random()*192);
+  ctx.save();ctx.globalAlpha=0.16;try{ctx.globalCompositeOperation='overlay';}catch(e){}
+  ctx.scale(z,z);ctx.translate(-ox,-oy);ctx.fillStyle=ctx.createPattern(grainCv,'repeat');ctx.fillRect(ox,oy,W/z,H/z);ctx.restore();
+}
+function glitch(q,t){
+  const W=cv.width,H=cv.height,k=1-Math.abs(2*q-1);let seed=Math.floor(t*24)*9301+49297;
+  const rnd=()=>{seed=(seed*9301+49297)%233280;return seed/233280;};
+  for(let i=0;i<7;i++){const y=Math.floor(rnd()*H*0.9),h=Math.max(2,Math.min(H-y,Math.floor(H*(0.03+rnd()*0.08)))),dx=(rnd()-0.5)*W*0.3*k;try{ctx.drawImage(cv,0,y,W,h,dx,y,W,h);}catch(e){}}
+  ctx.save();ctx.globalCompositeOperation='screen';ctx.globalAlpha=0.3*k;ctx.fillStyle=rnd()>0.5?'#ff0050':'#00e5ff';ctx.fillRect(0,Math.floor(rnd()*H*0.85),W,H*0.12);ctx.restore();
 }
 function render(t){
   const W=cv.width,H=cv.height;
@@ -513,6 +561,9 @@ function render(t){
   const i=clipAt(t);if(i<0)return;
   const c=S.clips[i],lt=t-c.start,prev=S.clips[i-1],td=Math.min(c.tdur,c.dur*0.6);
   let q=prev&&c.trans!=='none'?lt/td:1;
+  const G=S.g,env=(G.pulse||G.shake)?beatEnv(t):0,q0=q;
+  ctx.save();
+  if(G.pulse||G.shake){const z=1+(G.pulse?0.055*env:0)+(G.shake?0.03:0);ctx.translate(W/2+(G.shake?Math.sin(t*83)*env*W*0.014:0),H/2+(G.shake?Math.cos(t*67)*env*H*0.01:0));ctx.scale(z,z);ctx.translate(-W/2,-H/2);}
   if(q<1){
     q=q*q*(3-2*q);const plt=prev.dur+lt;
     switch(c.trans){
@@ -526,9 +577,18 @@ function render(t){
       case 'spin':drawMedia(prev,plt,{});drawMedia(c,lt,{alpha:q,rot:(q-1)*0.6,scale:1.45-0.45*q});break;
       case 'flash':if(q<0.5)drawMedia(prev,plt,{});else drawMedia(c,lt,{});ctx.globalAlpha=q<0.5?2*q:2-2*q;ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);ctx.globalAlpha=1;break;
       case 'blur':drawMedia(prev,plt,{blur:q*W/36});drawMedia(c,lt,{alpha:q,blur:(1-q)*W/36});break;
+      case 'blast':drawMedia(c,lt,{scale:1.25-0.25*q});drawMedia(prev,plt,{alpha:1-q,scale:1+1.8*q,blur:q*W/50});break;
+      case 'whip':{const bl=Math.sin(q*3.1416)*W/28;drawMedia(prev,plt,{dx:-q*W,blur:bl});drawMedia(c,lt,{dx:(1-q)*W,blur:bl});break;}
+      case 'glitch':if(q<0.5)drawMedia(prev,plt,{});else drawMedia(c,lt,{});break;
       case 'black':if(q<0.5)drawMedia(prev,plt,{alpha:1-2*q});else drawMedia(c,lt,{alpha:2*q-1});break;
     }
   }else drawMedia(c,lt,{});
+  ctx.restore();
+  if(q0<1&&c.trans==='glitch')glitch(q0,t);
+  if(G.leak){const g=ctx.createRadialGradient(W*(0.5+0.55*Math.sin(t*0.6)),H*(0.25+0.1*Math.cos(t*0.4)),0,W*(0.5+0.55*Math.sin(t*0.6)),H*0.25,W*0.95);g.addColorStop(0,'rgba(255,150,50,0.42)');g.addColorStop(1,'rgba(255,120,40,0)');ctx.save();try{ctx.globalCompositeOperation='screen';}catch(e){}ctx.fillStyle=g;ctx.fillRect(0,0,W,H);ctx.restore();}
+  if(G.flash&&i>0&&lt<0.5){ctx.globalAlpha=0.2*Math.exp(-lt*9);ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);ctx.globalAlpha=1;}
+  if(G.grain)grain(W,H);
+  if(G.bars){const bh=Math.round(H*(W>H?0.11:0.09));ctx.fillStyle='#000';ctx.fillRect(0,0,W,bh);ctx.fillRect(0,H-bh,W,bh);}
   drawText(c,lt);
 }
 function syncVideos(t,playing){
@@ -683,16 +743,20 @@ function applySugg(){
 function suggestedStyle(){
   if(!S.audio)return ['classique','pas de musique choisie'];
   const b=Math.round(S.audio.bpm);
-  return b>=118?['dynamique','musique rapide, '+b+' BPM']:b<=96?['doux','musique lente, '+b+' BPM']:['voyage','musique de tempo moyen, '+b+' BPM'];
+  return b>=118?['punch','musique rapide, '+b+' BPM']:b<=96?['cine','musique lente, '+b+' BPM']:['voyage','musique de tempo moyen, '+b+' BPM'];
 }
 function styleUI(){
   const sg=suggestedStyle();$('styleSug').textContent=STYLES[sg[0]].n+' ('+sg[1]+')';
-  document.querySelectorAll('#styleList button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.s===S.style?'true':'false'));
+  document.querySelectorAll('#styleList button,#styleList2 button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.s===S.style?'true':'false'));
+  ['pulse','shake','flash','grain','leak','bars'].forEach(k=>{$('g'+k.charAt(0).toUpperCase()+k.slice(1)).checked=!!S.g[k];});
+  $('every').value=S.every;$('pattern').value=S.pattern;
 }
 function applyStyle(k){
   const st=STYLES[k];if(!st||!S.clips.length)return;let a=0,b=0;
-  S.clips.forEach((c,i)=>{const m=mediaById(c.mid);c.trans=st.trans[a++%st.trans.length];c.motion=m.kind==='image'?st.motion[b++%st.motion.length]:'none';c.fx=st.fx;c.vig=st.vig;Object.assign(c,st.t);});
-  S.style=k;fillInspector();showFrame();toast('Style « '+st.n+' » appliqué à tout le film.');
+  S.clips.forEach(c=>{const m=mediaById(c.mid);c.trans=st.trans[a++%st.trans.length];c.motion=m.kind==='image'?st.motion[b++%st.motion.length]:'none';c.fx=st.fx;c.vig=st.vig;c.tdur=st.tdur||0.5;Object.assign(c,st.t);});
+  S.g={pulse:false,shake:false,flash:false,grain:false,leak:false,bars:false};Object.assign(S.g,st.g||{});
+  S.pattern=st.pattern||'reg';if(st.every)S.every=st.every;
+  S.style=k;const i=S.cur;retime();S.cur=Math.min(i,S.clips.length-1);renderStrip();showFrame();toast('Style « '+st.n+' » appliqué à tout le film.');
 }
 function loadFonts(){
   if(!document.fonts||!document.fonts.load)return;
@@ -805,7 +869,9 @@ Object.keys(FONTS).forEach(k=>$('iTfont').add(new Option(FONTS[k].n,k)));
 Object.keys(FX).forEach(k=>$('iFx').add(new Option(FX[k].n,k)));
 Object.keys(STYLES).forEach(k=>{const b=document.createElement('button');b.dataset.s=k;b.setAttribute('aria-pressed','false');b.style.cssText='height:auto;padding:8px 6px;line-height:1.25';
   const t=document.createElement('span');t.textContent=STYLES[k].n;t.style.display='block';const d=document.createElement('span');d.className='mu';d.style.cssText='display:block;font-size:12px;font-weight:400';d.textContent=STYLES[k].d;
-  b.append(t,d);b.onclick=()=>applyStyle(k);$('styleList').appendChild(b);});
+  b.append(t,d);b.onclick=()=>applyStyle(k);$(STYLES[k].soc?'styleList2':'styleList').appendChild(b);});
+['pulse','shake','flash','grain','leak','bars'].forEach(k=>{$('g'+k.charAt(0).toUpperCase()+k.slice(1)).onchange=e=>{S.g[k]=e.target.checked;showFrame();};});
+$('pattern').onchange=e=>{S.pattern=e.target.value;if(S.clips.length)retime();};
 $('bStyleSug').onclick=()=>applyStyle(suggestedStyle()[0]);
 $('iTfont').onchange=e=>{cur().tfont=e.target.value;showFrame();};
 $('iTsize').onchange=e=>{cur().tsize=e.target.value;showFrame();};
