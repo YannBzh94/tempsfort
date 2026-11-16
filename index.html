@@ -11,6 +11,7 @@
 <style>
 :root{--bg:#101114;--s1:#1A1C21;--s2:#24272E;--bd:#2F333B;--tx:#F2F3F5;--mu:#A3A8B3;--ac:#FFB23E;--bt:#5AA9FF}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html,body{margin:0;background:var(--bg);color:var(--tx);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:16px}
 body{max-width:600px;margin:0 auto;padding:0 14px 96px}
 h1{font-size:24px;margin:18px 0 2px}
@@ -181,9 +182,17 @@ video#result{width:100%;max-height:50vh;border-radius:10px;background:#000;margi
     <h2>Rythme</h2>
     <div class="row"><span class="bpm" id="bpm" style="flex:0 0 auto">–</span><span class="mu" id="aInfo">Aucune musique choisie. Sans musique, chaque photo dure 2,5 s.</span></div>
     <div class="row" style="margin-top:8px"><button id="bHalf" disabled>Tempo ÷ 2</button><button id="bDouble" disabled>Tempo × 2</button><button id="bListen" disabled>Écouter</button></div>
-    <label for="every">Changer d'image</label>
+    <label for="sync">Synchronisation des images</label>
+    <select id="sync"><option value="grid">Régulière : sur les temps de la mesure</option><option value="real">Rythme réel : sur les accents de la musique</option></select>
+    <div id="wReal" hidden>
+      <label for="density">Allure</label>
+      <select id="density"><option value="pose">Posée (images plus longues)</option><option value="normal" selected>Normale</option><option value="vif">Vive (changements rapides)</option></select>
+    </div>
+    <canvas id="rhCv" width="640" height="90" role="img" aria-label="Intensité de la musique et changements d'image prévus" style="width:100%;height:60px;margin-top:10px;border-radius:8px;background:#101114" hidden></canvas>
+    <p class="mu" id="rhInfo"></p>
+    <label for="every" id="lEvery">Changer d'image</label>
     <select id="every"><option value="1">À chaque temps</option><option value="2" selected>Tous les 2 temps</option><option value="4">Tous les 4 temps (une mesure)</option><option value="8">Toutes les 2 mesures</option></select>
-    <label for="pattern">Cadence</label>
+    <label for="pattern" id="lPattern">Cadence</label>
     <select id="pattern"><option value="reg">Régulière</option><option value="burst">Rafales (deux images longues, puis quatre rapides)</option><option value="accel">Accélération (lent au début, rapide à la fin)</option></select>
   </div>
 </section>
@@ -336,7 +345,7 @@ video#result{width:100%;max-height:50vh;border-radius:10px;background:#000;margi
 "use strict";
 const $=id=>document.getElementById(id);
 const MOIS=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
-const S={tpos:{},tposAll:'',tedit:{},tpl:null,tsel:null,tv:{annee:'',lieu:'',prenom:'',prenoms:''},ov:[],theme:'tous',bg:'blur',g:{pulse:false,shake:false,flash:false,grain:false,leak:false,bars:false},pattern:'reg',media:[],sel:[],clips:[],audio:null,every:2,fmt:'9:16',res:720,cur:0,playing:false,t:0,view:'medias'};
+const S={sync:'grid',density:'normal',tpos:{},tposAll:'',tedit:{},tpl:null,tsel:null,tv:{annee:'',lieu:'',prenom:'',prenoms:''},ov:[],theme:'tous',bg:'blur',g:{pulse:false,shake:false,flash:false,grain:false,leak:false,bars:false},pattern:'reg',media:[],sel:[],clips:[],audio:null,every:2,fmt:'9:16',res:720,cur:0,playing:false,t:0,view:'medias'};
 let uid=0,AC=null,src=null,recDest=null,clock0=0,raf=0,onEnded=null,exporting=false,listenSrc=null,outBlob=null,toastT=0;
 const cv=$('cv'),ctx=cv.getContext('2d');
 const FONTS={sys:{n:'Simple',f:'system-ui,-apple-system,"Segoe UI",Roboto,sans-serif',w:700},pop:{n:'Moderne',f:'"Poppins",system-ui,sans-serif',w:700},play:{n:'Élégante',f:'"Playfair Display",Georgia,serif',w:700},cav:{n:'Manuscrite',f:'"Caveat",cursive',w:700},bebas:{n:'Affiche',f:'"Bebas Neue",Impact,sans-serif',w:400},elite:{n:'Machine à écrire',f:'"Special Elite","Courier New",monospace',w:400},script:{n:'Calligraphie',f:'"Great Vibes","Caveat",cursive',w:400},marker:{n:'Feutre',f:'"Permanent Marker","Caveat",cursive',w:400}};
@@ -524,7 +533,7 @@ function autoPick(){
   if(mode==='day'){const v=$('autoDay').value;if(!v)return toast('Choisissez un jour.');const p=v.split('-').map(Number);
     list=list.filter(x=>x.date.getFullYear()===p[0]&&x.date.getMonth()===p[1]-1&&x.date.getDate()===p[2]);lab='le '+jour(new Date(p[0],p[1]-1,p[2]),true);}
   if(!list.length){$('autoInfo').textContent='Aucun média trouvé pour '+lab+'.';return;}
-  const per=S.audio?60/S.audio.bpm*S.every:2.5,N=Math.max(1,Math.round(+$('autoDur').value/per));
+  const per=avgGap(),N=Math.max(1,Math.round(+$('autoDur').value/per));
   let pick=list;
   if(list.length>N){pick=[];for(let i=0;i<N;i++)pick.push(list[Math.floor((i+0.5)*list.length/N)]);}
   S.sel=pick.map(x=>x.id);
@@ -561,9 +570,19 @@ function buildClips(){
 }
 function retime(){
   const beats=S.audio?S.audio.beats:null,per=S.audio?60/S.audio.bpm:0;let bi=0,prev=0;
+  const rc=S.audio&&S.sync==='real'?realCuts(S.audio):null,real=rc&&rc.length>1,mdur=S.audio?S.audio.buffer.duration:0,cutT=k=>rc[k%rc.length]+Math.floor(k/rc.length)*mdur;let ci=0;
   S.clips.forEach((c,idx)=>{
     const m=mediaById(c.mid),isV=m.kind==='video',avail=isV?Math.max(0.3,c.autoTrim?m.dur:m.dur-c.trimIn):Infinity;
-    if(beats){
+    if(real){
+      const want=c.len>0?Math.min(c.len,avail):isV?Math.min(avail,5):0;
+      while(cutT(ci)<=prev+0.25)ci++;
+      if(want>0){const target=prev+want;let j=ci;while(cutT(j+1)<=target)j++;
+        if(cutT(j)<target&&cutT(j+1)-target<target-cutT(j)&&(!isV||cutT(j+1)-prev<=avail+0.05))j++;
+        while(j>ci&&isV&&cutT(j)-prev>avail+0.05)j--;
+        ci=j;}
+      let end=cutT(ci);if(isV&&end-prev>avail+0.05)end=prev+avail;else ci++;
+      c.dur=Math.max(0.2,end-prev);
+    }else if(beats){
       let n=S.every;
       if(c.len>0)n=Math.max(1,Math.round(Math.min(c.len,avail)/per));
       else if(isV)n=Math.max(S.every,Math.min(S.every*4,Math.floor(avail/per)));
@@ -736,7 +755,10 @@ function drawText(c,lt){
 }
 function beatEnv(t){
   if(!S.audio)return 0;
-  const b=S.audio.beats,tt=t%S.audio.buffer.duration;let lo=0,hi=b.length-1,k=-1;
+  const tt=t%S.audio.buffer.duration;
+  if(S.sync==='real'&&S.audio.an){const p=S.audio.an.peaks;let lo=0,hi=p.length-1,k=-1;while(lo<=hi){const m=(lo+hi)>>1;if(p[m].t<=tt){k=m;lo=m+1;}else hi=m-1;}
+    return k<0?0:Math.exp(-(tt-p[k].t)*9)*Math.min(1,p[k].s/3);}
+  const b=S.audio.beats;let lo=0,hi=b.length-1,k=-1;
   while(lo<=hi){const m=(lo+hi)>>1;if(b[m]<=tt){k=m;lo=m+1;}else hi=m-1;}
   return k<0?0:Math.exp(-(tt-b[k])*9);
 }
@@ -885,12 +907,68 @@ function detectBeats(buf){
     beats.push(b*h);b+=P;}
   return {bpm:60/(P*h),beats};
 }
+/* ---------- Rythme réel ---------- */
+function analyzeReal(a){
+  if(a.an)return a.an;
+  const buf=a.buffer,sr=buf.sampleRate,c0=buf.getChannelData(0),c1=buf.numberOfChannels>1?buf.getChannelData(1):null;
+  const hop=Math.round(sr*0.0116),nf=Math.floor(buf.length/hop),h=hop/sr,eF=new Float32Array(nf),eB=new Float32Array(nf),al=1-Math.exp(-6.2832*150/sr);let lp=0;
+  for(let i=0;i<nf;i++){let sf=0,sb=0;const o=i*hop;for(let j=0;j<hop;j++){const x=c1?(c0[o+j]+c1[o+j])*0.5:c0[o+j];lp+=al*(x-lp);sf+=x*x;sb+=lp*lp;}
+    eF[i]=Math.log(1+1000*Math.sqrt(sf/hop));eB[i]=Math.log(1+1000*Math.sqrt(sb/hop));}
+  const flux=new Float32Array(nf),cum=new Float64Array(nf+1),cumE=new Float64Array(nf+1);
+  for(let i=1;i<nf;i++)flux[i]=Math.max(0,eF[i]-eF[i-1])+1.5*Math.max(0,eB[i]-eB[i-1]);
+  for(let i=0;i<nf;i++){cum[i+1]=cum[i]+flux[i];cumE[i+1]=cumE[i]+eF[i];}
+  const w=Math.round(0.5/h),lm=i=>{const a0=Math.max(0,i-w),b0=Math.min(nf,i+w+1);return (cum[b0]-cum[a0])/(b0-a0);};
+  const en=new Float32Array(nf);for(let i=0;i<nf;i++){const a0=Math.max(0,i-w),b0=Math.min(nf,i+w+1);en[i]=(cumE[b0]-cumE[a0])/(b0-a0);}
+  const srt=Array.from(en).sort((x,y)=>x-y),p10=srt[Math.floor(nf*0.1)]||0,p90=srt[Math.floor(nf*0.9)]||1,rg=Math.max(1e-6,p90-p10);
+  for(let i=0;i<nf;i++)en[i]=Math.max(0,Math.min(1,(en[i]-p10)/rg));
+  let peaks=[];const md=Math.round(0.1/h);
+  for(let i=1;i<nf-1;i++){if(flux[i]>=flux[i-1]&&flux[i]>flux[i+1]){const m=lm(i);if(flux[i]>1.4*m+0.02){const pk={t:i*h,s:flux[i]/(m+0.02),i};const last=peaks[peaks.length-1];
+    if(last&&i-last.i<md){if(pk.s>last.s)peaks[peaks.length-1]=pk;}else peaks.push(pk);}}}
+  const w2=Math.round(0.6/h);
+  peaks.forEach(pk=>{const a0=Math.max(0,pk.i-w2),b0=Math.min(nf-1,pk.i+w2);if(en[b0]-en[a0]>0.35)pk.s*=3;});
+  return a.an={h,nf,peaks,energy:en,cuts:{}};
+}
+function realCuts(a){
+  const an=analyzeReal(a);if(an.cuts[S.density])return an.cuts[S.density];
+  const dur=a.buffer.duration,R={pose:[1.6,4.5],normal:[0.8,3.2],vif:[0.4,2.0]}[S.density]||[0.8,3.2],P=an.peaks,cuts=[];let c=0,pi=0;
+  while(c<dur){
+    const e=an.energy[Math.min(an.nf-1,Math.round(c/an.h))]||0,g=R[1]+(R[0]-R[1])*e,lo=c+0.6*g,hi=c+1.5*g;
+    while(pi<P.length&&P[pi].t<lo)pi++;
+    let best=null,bs=-1;for(let k=pi;k<P.length&&P[k].t<=hi;k++){const sc=P[k].s*(1-0.5*Math.abs(P[k].t-(c+g))/g);if(sc>bs){bs=sc;best=P[k];}}
+    let t=best?best.t:c+g;
+    if(!best&&a.beats.length){let nb=a.beats[0],nd=1e9;for(const b of a.beats){const d=Math.abs(b-t);if(d<nd){nd=d;nb=b;}}if(nd<g*0.3&&nb>c+0.3)t=nb;}
+    if(t>=dur-0.05)break;cuts.push(t);c=t;
+  }
+  return an.cuts[S.density]=cuts;
+}
+function cutTimes(){
+  const a=S.audio;if(!a)return [];
+  if(S.sync==='real')return realCuts(a);
+  const out=[];for(let k=S.every;k<a.beats.length;k+=S.every)out.push(a.beats[k]);return out;
+}
+function avgGap(){
+  if(!S.audio)return 2.5;
+  if(S.sync==='real'){const c=realCuts(S.audio);return c.length?S.audio.buffer.duration/(c.length+1):2.5;}
+  return 60/S.audio.bpm*S.every;
+}
+function rhythmUI(){
+  const real=S.sync==='real';$('sync').value=S.sync;$('density').value=S.density;$('wReal').hidden=!real;
+  ['lEvery','every','lPattern','pattern'].forEach(id=>{$(id).hidden=real;});
+  const cvs=$('rhCv'),a=S.audio;cvs.hidden=!a;if(!a){$('rhInfo').textContent='';return;}
+  const an=analyzeReal(a),g=cvs.getContext('2d'),W=cvs.width,H=cvs.height,dur=a.buffer.duration,cuts=cutTimes();
+  g.clearRect(0,0,W,H);const n=160,bw=W/n;g.fillStyle='#6B7180';
+  for(let k=0;k<n;k++){const i0=Math.floor(k*an.nf/n),i1=Math.max(i0+1,Math.floor((k+1)*an.nf/n));let m=0;for(let i=i0;i<i1;i++)m+=an.energy[i];m/=(i1-i0);const bh=4+m*(H-10);g.fillRect(k*bw+1,H-bh,bw-2,bh);}
+  g.fillStyle='#5AA9FF';cuts.forEach(t=>g.fillRect(Math.round(t/dur*W),0,2,H));
+  let mn=1e9,mx=0,pv=0;cuts.forEach(t=>{const d=t-pv;if(d<mn)mn=d;if(d>mx)mx=d;pv=t;});
+  const f=x=>x.toFixed(1).replace('.',',');
+  $('rhInfo').textContent=cuts.length?(cuts.length+' changements d\u2019image possibles sur ce morceau (traits bleus), espacés de '+f(mn)+' à '+f(mx)+' s.'+(real?' Les images changent plus vite dans les passages intenses.':'')):'';
+}
 function setAudio(a){
   S.audio=a;$('bpm').textContent=Math.round(a.bpm);
   $('aInfo').textContent='BPM · '+a.name+' · '+mm(a.buffer.duration)+' · '+a.beats.length+' temps repérés';
   $('bHalf').disabled=$('bDouble').disabled=$('bListen').disabled=false;
   if(S.clips.length)retime();
-  styleUI();
+  styleUI();rhythmUI();
 }
 function stopListen(){if(listenSrc){try{listenSrc.stop();}catch(e){}listenSrc=null;$('bListen').textContent='Écouter';}}
 
@@ -1036,28 +1114,55 @@ function tplUse(){
 /* ---------- Idée : textes sur mesure ---------- */
 const normTxt=x=>x.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
 const B_THEMES=[
+  ['hommage','Hommage',/hommage|en memoire|nous a quittes|disparu/,'cine'],
   ['mariage','Mariage',/mariage|noces|maries|epous/,'cine'],
   ['naissance','Naissance',/naissance|bebe|nouveau-ne|premiers jours/,'doux'],
   ['anniv','Anniversaire',/anniversaire|anniv|\d+\s*ans/,'dynamique'],
+  ['retraite','Départ',/retraite|pot de depart|depart de|au revoir|demenagement/,'classique'],
   ['reussite','Réussite',/diplome|bravo|reussite|marathon|victoire|examen|concours|\bbac\b/,'dynamique'],
-  ['fetes','Fêtes',/noel|reveillon|nouvel an|\bfetes?\b|soiree/,'rewind'],
-  ['voyage','Voyage',/voyage|vacances|sejour|week-?end|road ?trip|escapade|rando|\bski\b|plage|croisiere/,'voyage'],
+  ['noel','Noël',/noel/,'rewind'],
+  ['nouvelan','Nouvel an',/nouvel an|reveillon|bonne annee/,'punch'],
+  ['couple','En amoureux',/amour|couple|valentin|nous deux|cheri|fiancailles|notre rencontre/,'doux'],
+  ['enfants','Enfants',/ecole|rentree|spectacle|kermesse|premiers pas|grandi|enfance|nos enfants|mes enfants|ma fille|mon fils/,'doux'],
+  ['animaux','Animaux',/chien|chat\b|chats\b|chiot|chaton|animal|animaux|cheval|poney/,'classique'],
+  ['sport','Sport',/sport|match|foot|rugby|tennis|\bcourse\b|velo|trail|tournoi|competition|entrainement/,'punch'],
+  ['sortie','Sortie',/concert|festival|\bsortie\b|\bbar\b|resto|restaurant/,'punch'],
+  ['fetes','Fêtes',/\bfetes?\b|soiree/,'rewind'],
+  ['ete','Été',/\bete\b|estival|grandes vacances/,'voyage'],
+  ['voyage','Voyage',/voyage|vacances|sejour|week-?end|road ?trip|escapade|\bski\b|plage|croisiere/,'voyage'],
+  ['nature','Nature',/rando|montagne|foret|nature|balade|sommet|\blac\b|campagne|jardin/,'cine'],
+  ['maison','Maison',/maison|travaux|renovation|emmenagement|chantier|appartement/,'voyage'],
+  ['repas','À table',/repas|cuisine|gateau|diner|dejeuner|barbecue|brunch|recette/,'classique'],
   ['annee','Récap de l\u2019année',/annee|recap|retrospective|bilan/,'voyage'],
   ['amis','Entre amis',/\bamis?\b|amies|copains|copines|potes|bande/,'punch'],
   ['famille','Famille',/famille|enfants|parents|mamie|papi|cousin|freres?|soeurs?/,'classique'],
   ['souvenirs','Souvenirs',/./,'classique']];
 const B_BANK={
-  voyage:[[['Quelques jours','{alieu|ailleurs}'],['rien à faire,','tout à voir'],['on y retourne','quand ?']],[['{lieu|Le voyage}','sans filtre'],['le temps','s\u2019arrête'],['à refaire','très vite']],[['Direction','{lieu|l\u2019ailleurs}'],['plein','les yeux'],['fin du voyage,','pas des souvenirs']]],
-  anniv:[[['Joyeux anniversaire','{prenom|!}'],{a:['{age} ans,','et alors ?'],b:['que du','bonheur']},['une belle année','commence']],[['{age} ans de plus||Un an de plus','{prenom}'],['mille','souvenirs'],['et ce n\u2019est','que le début']],[['C\u2019est ta','journée'],['on t\u2019aime','{prenom|fort}'],['à l\u2019année','prochaine']]],
-  mariage:[[['Le plus','beau jour','{prenom}'],['oui,','pour la vie'],['pour','toujours']],[['Ils se sont dit','oui'],['tant','d\u2019amour'],['et ce n\u2019est','que le début']]],
-  naissance:[[['Bienvenue','{prenom|petit cœur}'],['nos premiers','jours'],['le début','de tout']],[['Et soudain,','toi'],['si petit,','si grand'],['notre plus','belle histoire']]],
-  fetes:[[['Joyeuses','fêtes','{annee}'],['ensemble'],['meilleurs','vœux']],[['Quelle','soirée'],['que du','bonheur'],['on remet ça ?']]],
-  annee:[[['Et voilà','{annee|l\u2019année}'],['tant de','bonheur'],['à l\u2019année','prochaine']],[['{annee|L\u2019année}','en images'],['des hauts,','des très hauts'],['merci','{annee|pour tout}']]],
-  amis:[[['Mes gens','préférés'],['les mêmes,','en mieux'],['à très','vite']],[['Toujours','ensemble'],['fous rires','garantis'],['on remet ça ?']]],
-  famille:[[['La famille,','tout simplement'],['nos petits','bonheurs'],['rien de plus','précieux']],[['Chez','nous'],['le bruit,','les rires'],['et on','recommence']]],
-  reussite:[[['Bravo','{prenom|!}'],['tu l\u2019as','fait'],['on est','fiers de toi']],[['Mission','accomplie'],['du travail,','du cœur'],['bravo','{prenom|à toi}']]],
-  souvenirs:[[['Nos plus','beaux moments'],['instants','choisis'],['à garder','précieusement']],[['Juste','nous'],['et le temps','s\u2019arrête'],['à suivre…']]]
+  hommage:[[['En souvenir','de {prenom}||de toi'],['tant de','lumière'],['toujours','avec nous']],[['Pour {prenom}||Pour toi'],['des souvenirs','pour toujours'],['merci','pour tout']]],
+  voyage:[[['Quelques jours','{alieu|ailleurs}'],['rien à faire,','tout à voir'],['on y retourne','quand ?']],[['{lieu|Le voyage}','sans filtre'],['le temps','s\u2019arrête'],['à refaire','très vite']],[['Direction','{lieu|l\u2019ailleurs}'],['plein','les yeux'],['fin du voyage,','pas des souvenirs']],[['{lieu|Ailleurs},','enfin'],['perdre','la notion du temps'],['retour','obligatoire ?']],[['Carnet','de voyage','{lieu}'],['chaque jour,','une surprise'],['fin du','chapitre']]],
+  ete:[[['Un été','{alieu|parfait}'],['du soleil,','du temps'],['vivement','le prochain']],[['Cet','été-là'],['pieds nus,','cœur léger'],['à garder','au chaud']],[['L\u2019été','{annee|sans fin}'],['des journées','sans montre'],['déjà','fini ?']]],
+  nature:[[['Là-haut,','tout va mieux'],['respirer'],['et redescendre','à regret']],[['Grand','air'],['le silence,','enfin'],['on y','retourne']],[['Prendre','le large'],['pas','à pas'],['plein','les yeux']]],
+  anniv:[[['Joyeux anniversaire','{prenom|!}'],{a:['{age} ans,','et alors ?'],b:['que du','bonheur']},['une belle année','commence']],[['{age} ans de plus||Un an de plus','{prenom}'],['mille','souvenirs'],['et ce n\u2019est','que le début']],[['C\u2019est ta','journée'],['on t\u2019aime','{prenom|fort}'],['à l\u2019année','prochaine']],[['Bon anniversaire','{prenom|!}'],['des bougies,','des sourires'],['fais','un vœu']]],
+  mariage:[[['Le plus','beau jour','{prenom}'],['oui,','pour la vie'],['pour','toujours']],[['Ils se sont dit','oui'],['tant','d\u2019amour'],['et ce n\u2019est','que le début']],[['Oui,','pour la vie','{prenom}'],['deux cœurs,','une histoire'],['et ils vécurent','heureux']]],
+  couple:[[['Toi','et moi'],['rien d\u2019autre','à ajouter'],['pour','longtemps']],[['Nous','deux'],['chaque jour','un peu plus'],['et ça','continue']],[['Depuis','toi'],['tout est','plus beau'],['merci','mon amour']]],
+  naissance:[[['Bienvenue','{prenom|petit cœur}'],['nos premiers','jours'],['le début','de tout']],[['Et soudain,','toi'],['si petit,','si grand'],['notre plus','belle histoire']],[['Bonjour','{prenom|toi}'],['dix doigts,','mille bisous'],['bienvenue','chez nous']]],
+  enfants:[[['Comme','tu grandis'],['chaque jour,','une première'],['ne change','rien']],[['Petits pas,','grands moments'],['des rires','partout'],['à suivre…']],[['{prenom|Toi},','en vrai'],['mille','questions'],['notre','fierté']]],
+  animaux:[[['Mon','préféré'],['quatre pattes,','un cœur'],['le meilleur','des amis']],[['{prenom|Lui},','tout simplement'],['bêtises','garanties'],['on t\u2019aime','comme ça']]],
+  noel:[[['Joyeux','Noël'],['au chaud,','ensemble'],['meilleurs','vœux']],[['La magie','de Noël'],['des étoiles','plein les yeux'],['à l\u2019année','prochaine']],[['Noël','{annee|en famille}'],['le plus','beau cadeau'],['être','ensemble']]],
+  nouvelan:[[['Bonne','année'],['3, 2, 1…'],['et c\u2019est','reparti']],[['Adieu','{annee|l\u2019année}'],['que la fête','commence'],['meilleurs','vœux']]],
+  fetes:[[['Joyeuses','fêtes','{annee}'],['ensemble'],['meilleurs','vœux']],[['Quelle','soirée'],['que du','bonheur'],['on remet ça ?']],[['Tous','ensemble'],['des rires,','des verres'],['à la','prochaine']]],
+  sortie:[[['Quelle','soirée'],['le son,','les amis'],['on remet ça ?']],[['Ce','soir-là'],['tout était','parfait'],['à refaire','vite']]],
+  sport:[[['Jour de','match'],['tout','donner'],['et on','recommence']],[['Plus vite,','plus fort'],['le goût','de l\u2019effort'],['fiers','de nous']],[['Rien','lâcher'],['jusqu\u2019au','bout'],['la victoire','est là']]],
+  reussite:[[['Bravo','{prenom|!}'],['tu l\u2019as','fait'],['on est','fiers de toi']],[['Mission','accomplie'],['du travail,','du cœur'],['bravo','{prenom|à toi}']],[['Tu l\u2019as','fait','{prenom}'],['chaque effort','comptait'],['la suite','t\u2019appartient']]],
+  retraite:[[['Merci','{prenom|pour tout}'],['tant d\u2019années,','tant de souvenirs'],['bonne','route']],[['Une page','se tourne'],['et quelle','page'],['la suite','t\u2019attend']]],
+  maison:[[['Avant,','après'],['de la sueur,','des idées'],['enfin','chez nous']],[['Chez','nous'],['pièce','par pièce'],['et voilà','le travail']]],
+  repas:[[['À','table'],['fait','maison'],['encore','un peu ?']],[['Bon','appétit'],['le goût','des bons moments'],['on se','régale']]],
+  annee:[[['Et voilà','{annee|l\u2019année}'],['tant de','bonheur'],['à l\u2019année','prochaine']],[['{annee|L\u2019année}','en images'],['des hauts,','des très hauts'],['merci','{annee|pour tout}']],[['Douze mois,','mille images'],['on a','bien vécu'],['vivement','la suite']]],
+  amis:[[['Mes gens','préférés'],['les mêmes,','en mieux'],['à très','vite']],[['Toujours','ensemble'],['fous rires','garantis'],['on remet ça ?']],[['Les mêmes,','toujours'],['zéro','prise de tête'],['vivement','la prochaine']]],
+  famille:[[['La famille,','tout simplement'],['nos petits','bonheurs'],['rien de plus','précieux']],[['Chez','nous'],['le bruit,','les rires'],['et on','recommence']],[['Nous,','tout simplement'],['du bruit,','de l\u2019amour'],['notre plus','belle équipe']]],
+  souvenirs:[[['Nos plus','beaux moments'],['instants','choisis'],['à garder','précieusement']],[['Juste','nous'],['et le temps','s\u2019arrête'],['à suivre…']],[['Ces','moments-là'],['simples','et précieux'],['à revoir','souvent']],[['Un peu','de nous'],['des jours','heureux'],['et ce n\u2019est','pas fini']]]
 };
+const B_ACC=[[/surprise/,['Surprise','réussie']],[/plage|\bmer\b|ocean/,['les pieds','dans le sable']],[/montagne|\bski\b|neige/,['là-haut,','tout va mieux']],[/camping|bivouac/,['sous','les étoiles']],[/road ?trip|\broute\b/,['la route,','tout simplement']],[/soleil/,['du soleil','plein les poches']],[/pluie/,['même','sous la pluie']],[/premiere? fois|\bpremiere?s?\b/,['une grande','première']],[/bougies|gateau/,['des bougies,','des sourires']],[/fou ?rires?|rigol/,['fous rires','garantis']]];
 const B_STOP=/^(Noël|Pâques|Janvier|Février|Mars|Avril|Mai|Juin|Juillet|Août|Septembre|Octobre|Novembre|Décembre|Lundi|Mardi|Mercredi|Jeudi|Vendredi|Samedi|Dimanche)$/i;
 function briefParse(txt){
   const t=' '+txt.trim()+' ',low=normTxt(t),o={lieu:'',prenom:'',age:'',annee:''};
@@ -1065,19 +1170,23 @@ function briefParse(txt){
   const a=low.match(/(?:^|\D)(\d{1,3})\s*ans(?:[^a-z]|$)/);if(a)o.age=a[1];
   const pl=t.match(/[\s,;(](à|en|au|aux)\s+([A-ZÀ-Ý][A-Za-zÀ-ÿ\u2019'-]*(?:[ -][A-ZÀ-Ý][A-Za-zÀ-ÿ\u2019'-]*){0,2})/);if(pl&&!B_STOP.test(pl[2])){o.lieu=pl[2];o.prep=pl[1];}
   const nm=t.match(/[\s,;(](?:de|pour|avec)\s+([A-ZÀ-Ý][a-zà-ÿ-]+(?:\s(?:et|&)\s[A-ZÀ-Ý][a-zà-ÿ-]+)?)/)||t.match(/[\s,;(]d[\u2019']([A-ZÀ-Ý][a-zà-ÿ-]+)/);if(nm&&!B_STOP.test(nm[1])&&nm[1]!==o.lieu)o.prenom=nm[1];
+  if(!o.prenom){const an=t.match(/(?:chien|chienne|chat|chatte|chiot|chaton|cheval|poney|jument)\s+([A-ZÀ-Ý][a-zà-ÿ-]+)/);if(an)o.prenom=an[1];}
   let th=B_THEMES.find(x=>x[2].test(low));
+  if(th[0]==='hommage'&&!o.prenom&&o.lieu){o.prenom=o.lieu;o.lieu='';}
   if(th[0]==='souvenirs'&&o.lieu)th=B_THEMES.find(x=>x[0]==='voyage');
   let style=th[3];
   if(/nostalg|retro|autrefois|a l\u2019ancienne/.test(low))style='rewind';
   else if(/doux|tendre|emouv|calme|poetique|sobre/.test(low))style='doux';
   else if(/drole|fun|dynamique|rythm|energi|festif|delire/.test(low))style='punch';
-  return {theme:th[0],themeName:th[1],style,vals:o};
+  const ac=th[0]==='hommage'?null:B_ACC.find(x=>x[0].test(low));
+  return {theme:th[0],themeName:th[1],style,vals:o,accent:ac?ac[1]:null};
 }
 function briefLines(){
   const B=S.brief,bank=B_BANK[B.theme],v=bank[B.variant%bank.length],vals=Object.assign({},B.vals,{alieu:B.vals.lieu?(B.vals.prep||'à')+' '+B.vals.lieu:''});
   const one=str=>{let ok=true;const t=str.replace(/\{(\w+)(?:\|([^}]*))?\}/g,(m,k,fb)=>{const val=vals[k]||(fb!==undefined?fb:'');if(!val&&fb===undefined)ok=false;return val;}).replace(/\s+/g,' ').trim();return ok&&t&&t!=='!'?t:null;};
   const line=l=>{for(const alt of l.split('||')){const r=one(alt);if(r)return r;}return null;};
-  return v.map(block=>{
+  return v.map((block,bi)=>{
+    if(bi===1&&B.accent&&B.variant%2===0&&v.length===3)return B.accent.slice();
     if(!Array.isArray(block)){const A=block.a.map(line);return A.every(Boolean)?A:block.b.map(line).filter(Boolean);}
     return block.map(line).filter(Boolean);
   }).filter(b=>b.length);
@@ -1103,7 +1212,7 @@ function briefGo(){
   const txt=$('brief').value.trim();if(!txt){toast('Décrivez votre film en une phrase, ou passez cette étape.');return;}
   const r=briefParse(txt);
   if(!r.vals.annee&&r.theme==='annee')r.vals.annee=tplVal('annee');
-  S.brief={theme:r.theme,themeName:r.themeName,style:r.style,vals:r.vals,variant:0};
+  S.brief={theme:r.theme,themeName:r.themeName,style:r.style,vals:r.vals,accent:r.accent,variant:0};
   $('bLieu').value=r.vals.lieu;$('bPrenom').value=r.vals.prenom;$('bAge').value=r.vals.age;$('bAnnee').value=r.vals.annee;
   briefUI();
 }
@@ -1177,6 +1286,7 @@ function stageUI(){$('stage').hidden=!(S.clips.length&&(S.view==='montage'||S.vi
 function go(v){
   S.view=v;['idee','modeles','medias','musique','montage','export'].forEach(n=>{$('v-'+n).hidden=n!==v;});
   if(v==='modeles'){tplGrid();tplUI();}
+  if(v==='musique')rhythmUI();
   document.querySelectorAll('nav button').forEach(b=>b.setAttribute('aria-current',b.dataset.v===v?'true':'false'));
   if(v!=='montage'&&v!=='export'&&!exporting)pause();
   stageUI();if(!$('stage').hidden)showFrame();window.scrollTo(0,0);
@@ -1230,7 +1340,7 @@ $('bListen').onclick=()=>{
   const a=ac();if(!a||!S.audio)return;pause();if(a.state==='suspended')a.resume().catch(()=>{});
   try{listenSrc=a.createBufferSource();listenSrc.buffer=S.audio.buffer;listenSrc.connect(a.destination);listenSrc.onended=stopListen;listenSrc.start();$('bListen').textContent='Arrêter';}catch(e){listenSrc=null;}
 };
-$('every').onchange=e=>{S.every=+e.target.value;if(S.clips.length)retime();};
+$('every').onchange=e=>{S.every=+e.target.value;if(S.clips.length)retime();rhythmUI();};
 $('fmt').onchange=e=>{S.fmt=e.target.value;sizeCanvas();};
 $('res').onchange=e=>{S.res=+e.target.value;sizeCanvas();};
 $('bExport').onclick=doExport;$('bSave').onclick=saveOut;
@@ -1242,7 +1352,9 @@ Object.keys(STYLES).forEach(k=>{const b=document.createElement('button');b.datas
   const t=document.createElement('span');t.textContent=STYLES[k].n;t.style.display='block';const d=document.createElement('span');d.className='mu';d.style.cssText='display:block;font-size:12px;font-weight:400';d.textContent=STYLES[k].d;
   b.append(t,d);b.onclick=()=>applyStyle(k);$(STYLES[k].soc?'styleList2':'styleList').appendChild(b);});
 ['pulse','shake','flash','grain','leak','bars'].forEach(k=>{$('g'+k.charAt(0).toUpperCase()+k.slice(1)).onchange=e=>{S.g[k]=e.target.checked;showFrame();};});
-$('pattern').onchange=e=>{S.pattern=e.target.value;if(S.clips.length)retime();};
+$('pattern').onchange=e=>{S.pattern=e.target.value;if(S.clips.length)retime();rhythmUI();};
+$('sync').onchange=e=>{S.sync=e.target.value;if(S.clips.length)reT();rhythmUI();toast(S.sync==='real'?'Les images suivent maintenant les accents réels de la musique.':'Les images changent de nouveau à intervalles réguliers.');};
+$('density').onchange=e=>{S.density=e.target.value;if(S.clips.length)reT();rhythmUI();};
 $('bStyleSug').onclick=()=>applyStyle(suggestedStyle()[0]);
 $('iTfont').onchange=e=>{cur().tfont=e.target.value;showFrame();};
 $('iTsize').onchange=e=>{cur().tsize=e.target.value;showFrame();};
