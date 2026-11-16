@@ -89,7 +89,8 @@ video#result{width:100%;max-height:50vh;border-radius:10px;background:#000;margi
 </div>
 
 <section id="v-modeles" hidden>
-  <p class="mu">Choisissez un modèle : ses textes et son style sont prêts, il ne reste qu'à y mettre vos photos et vidéos.</p>
+  <p class="mu" id="tplIntro"></p>
+  <button class="pri" id="bNoTpl" style="margin:6px 0 4px">Continuer sans modèle</button>
   <div class="tabs" id="themes" role="tablist" aria-label="Thèmes de modèles"></div>
   <div class="card" id="tplCard" hidden>
     <h2 id="tplName"></h2>
@@ -99,7 +100,6 @@ video#result{width:100%;max-height:50vh;border-radius:10px;background:#000;margi
     <button id="bTplNone" style="width:100%;margin-top:8px" hidden>Retirer le modèle du film</button>
   </div>
   <div class="tgrid" id="tplGrid"></div>
-  <button id="bNoTpl" style="width:100%">Créer sans modèle</button>
 </section>
 
 <section id="v-medias" hidden>
@@ -223,6 +223,11 @@ video#result{width:100%;max-height:50vh;border-radius:10px;background:#000;margi
       <div class="row"><button id="bTransAll">Appliquer à toutes</button><button id="bTransVar">Varier automatiquement</button></div>
     </div>
     <div class="card panel" id="p-text" hidden>
+      <div id="tplTextBox" hidden>
+        <h2>Textes du modèle</h2>
+        <p class="mu">Modifiez ou videz une ligne : le changement s'applique tout de suite. Une ligne vide n'est pas affichée.</p>
+        <div id="tplTexts"></div>
+      </div>
       <h2>Texte sur l'image</h2>
       <input id="iText" type="text" placeholder="Texte affiché sur cette image" aria-label="Texte">
       <h2>Apparence</h2>
@@ -286,8 +291,8 @@ video#result{width:100%;max-height:50vh;border-radius:10px;background:#000;margi
 </section>
 
 <nav aria-label="Étapes">
-  <button data-v="modeles" aria-current="true">Modèles</button>
-  <button data-v="medias">Médias</button>
+  <button data-v="medias" aria-current="true">Médias</button>
+  <button data-v="modeles">Modèles</button>
   <button data-v="musique">Musique</button>
   <button data-v="montage">Montage</button>
   <button data-v="export">Export</button>
@@ -298,7 +303,7 @@ video#result{width:100%;max-height:50vh;border-radius:10px;background:#000;margi
 "use strict";
 const $=id=>document.getElementById(id);
 const MOIS=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
-const S={tpl:null,tsel:null,tv:{annee:'',lieu:'',prenom:'',prenoms:''},ov:[],theme:'tous',bg:'blur',g:{pulse:false,shake:false,flash:false,grain:false,leak:false,bars:false},pattern:'reg',media:[],sel:[],clips:[],audio:null,every:2,fmt:'9:16',res:720,cur:0,playing:false,t:0,view:'medias'};
+const S={tedit:{},tpl:null,tsel:null,tv:{annee:'',lieu:'',prenom:'',prenoms:''},ov:[],theme:'tous',bg:'blur',g:{pulse:false,shake:false,flash:false,grain:false,leak:false,bars:false},pattern:'reg',media:[],sel:[],clips:[],audio:null,every:2,fmt:'9:16',res:720,cur:0,playing:false,t:0,view:'medias'};
 let uid=0,AC=null,src=null,recDest=null,clock0=0,raf=0,onEnded=null,exporting=false,listenSrc=null,outBlob=null,toastT=0;
 const cv=$('cv'),ctx=cv.getContext('2d');
 const FONTS={sys:{n:'Simple',f:'system-ui,-apple-system,"Segoe UI",Roboto,sans-serif',w:700},pop:{n:'Moderne',f:'"Poppins",system-ui,sans-serif',w:700},play:{n:'Élégante',f:'"Playfair Display",Georgia,serif',w:700},cav:{n:'Manuscrite',f:'"Caveat",cursive',w:700},bebas:{n:'Affiche',f:'"Bebas Neue",Impact,sans-serif',w:400},elite:{n:'Machine à écrire',f:'"Special Elite","Courier New",monospace',w:400},script:{n:'Calligraphie',f:'"Great Vibes","Caveat",cursive',w:400},marker:{n:'Feutre',f:'"Permanent Marker","Caveat",cursive',w:400}};
@@ -907,28 +912,41 @@ function tplVal(k){
   if(k==='lieu')return S.tv.lieu||'ailleurs';
   return S.tv[k]||'';
 }
-function tplParts(parts,extra){
-  const out=[];
-  parts.forEach(p=>{let ok=true;const t=p.t.replace(/\{(\w+)\}/g,(m,k)=>{const v=extra&&extra[k]!==undefined?extra[k]:tplVal(k);if(!v)ok=false;return v;});if(ok&&t.trim())out.push(Object.assign({},p,{t:p.up?t.toUpperCase():t}));});
-  return out;
+function tplParts(parts,extra,pre){
+  return parts.map((p,i)=>{
+    const key=pre?pre+':'+i:null;let ok=true,t=p.t.replace(/\{(\w+)\}/g,(m,k)=>{const v=extra&&extra[k]!==undefined?extra[k]:tplVal(k);if(!v)ok=false;return v;});
+    if(!ok)t='';
+    if(key&&S.tedit[key]!==undefined)t=S.tedit[key];
+    return Object.assign({},p,{key,raw:t,t:p.up?t.toUpperCase():t});
+  });
 }
 function layoutTpl(){
-  S.ov=[];const T=TPL[S.tpl],n=S.clips.length;if(!T||!n)return;
-  const add=(a,b,pos,parts)=>{if(!parts.length)return;const t0=S.clips[a].start,t1=S.clips[b].start+S.clips[b].dur;if(S.ov.some(o=>t0<o.t1&&t1>o.t0))return;S.ov.push({t0,t1,pos,parts});};
+  S.ov=[];const T=TPL[S.tpl],n=S.clips.length;if(!T||!n){tplTextsUI();return;}
+  const add=(a,b,pos,parts,label)=>{const t0=S.clips[a].start,t1=S.clips[b].start+S.clips[b].dur;if(S.ov.some(o=>t0<o.t1&&t1>o.t0))return;S.ov.push({t0,t1,pos,parts,label});};
   T.ov.forEach(o=>{const span=Math.min(o.span||1,n);let a,b;
     if(o.at==='start'){a=0;b=span-1;}else if(o.at==='end'){b=n-1;a=n-span;}else{a=Math.min(n-1,Math.max(0,Math.round(o.at*(n-1))));b=Math.min(n-1,a+span-1);}
-    add(a,b,o.pos,tplParts(o.parts));});
+    add(a,b,o.pos,tplParts(o.parts,null,'f'+T.ov.indexOf(o)),o.at==='start'?'Ouverture':o.at==='end'?'Fin':'Milieu');});
   if(T.auto){
     const ms=S.clips.map(c=>mediaById(c.mid).date),key=d=>T.auto==='months'?d.getFullYear()*12+d.getMonth():d.getFullYear()*372+d.getMonth()*31+d.getDate();let day=0;
     ms.forEach((d,i)=>{if(i>0&&key(d)===key(ms[i-1]))return;day++;
       let b=i;if(i+1<n&&key(ms[i+1])===key(d))b=i+1;
-      add(i,b,T.autoPos||'mid',tplParts(T.autoParts,{mois:cap(MOIS[d.getMonth()]),jour:String(day)}));});
+      add(i,b,T.autoPos||'mid',tplParts(T.autoParts,{mois:cap(MOIS[d.getMonth()]),jour:String(day)},'a'+key(d)),T.auto==='months'?cap(MOIS[d.getMonth()]):'Jour '+day);});
   }
+  S.ov.sort((x,y)=>x.t0-y.t0);tplTextsUI();
+}
+function tplTextsUI(){
+  const box=$('tplTexts');box.textContent='';$('tplTextBox').hidden=!S.ov.length;
+  S.ov.forEach((o,k)=>{
+    const h=document.createElement('p');h.className='mu';h.style.margin='10px 0 4px';h.textContent=o.label+' · à '+mm(o.t0);box.appendChild(h);
+    o.parts.forEach((p,j)=>{const i=document.createElement('input');i.type='text';i.value=p.raw;i.style.marginBottom='6px';i.setAttribute('aria-label',o.label+', ligne '+(j+1));
+      i.oninput=()=>{S.tedit[p.key]=i.value;p.raw=i.value;p.t=p.up?i.value.toUpperCase():i.value;pause();S.t=Math.max(o.t0,Math.min(o.t1-0.5,o.t0+Math.max(...o.parts.map(q=>q.d||0))+0.7));syncVideos(S.t,false);render(S.t);timeUI();};
+      box.appendChild(i);});
+  });
 }
 function drawOverlay(g,W,H,ov,t){
   const lt=t-ov.t0,aOut=Math.max(0,Math.min(1,(ov.t1-t)/0.4)),cy=ov.pos==='top'?H*0.24:ov.pos==='bottom'?H*0.76:H*0.45;
   ov.parts.forEach(p=>{
-    const pt=lt-(p.d||0);if(pt<0)return;
+    const pt=lt-(p.d||0);if(pt<0||!p.t||!p.t.trim())return;
     const e=1-Math.pow(1-Math.min(1,pt/0.5),3),F=FONTS[p.f]||FONTS.sys;let fs=W*p.s;
     g.save();g.filter='none';g.font=F.w+' '+fs+'px '+F.f;
     const tw=g.measureText(p.t).width;if(tw>W*0.9){fs*=W*0.9/tw;g.font=F.w+' '+fs+'px '+F.f;}
@@ -955,7 +973,7 @@ function tplGrid(){
 }
 function tplSelect(id){
   S.tsel=id;const T=TPL[id];$('tplCard').hidden=false;$('tplName').textContent=T.n;
-  $('tplDesc').textContent=cap(T.d)+'. Style « '+STYLES[T.style].n+' ». Les textes du modèle sont fixes ; seuls les champs ci-dessous se personnalisent.';
+  $('tplDesc').textContent=cap(T.d)+'. Style « '+STYLES[T.style].n+' ». Tous les textes restent modifiables ensuite, dans Montage › Texte.';
   const used=new Set();[...T.ov.map(o=>o.parts),T.autoParts||[]].forEach(ps=>ps.forEach(p=>(p.t.match(/\{(\w+)\}/g)||[]).forEach(m=>{const k=m.slice(1,-1);if(VARS[k])used.add(k);})));
   const box=$('tplVars');box.textContent='';
   used.forEach(k=>{const l=document.createElement('label');l.textContent=VARS[k];l.htmlFor='tv_'+k;const i=document.createElement('input');i.type='text';i.id='tv_'+k;i.value=S.tv[k];i.placeholder=k==='annee'?tplVal('annee'):k==='lieu'?'Ex. : Annecy':'';
@@ -963,15 +981,18 @@ function tplSelect(id){
   tplGrid();tplUI();window.scrollTo(0,0);
 }
 function tplUI(){
+  $('tplIntro').textContent=S.clips.length?'Vos '+S.clips.length+' médias sont prêts. Appliquez un modèle si vous le souhaitez : il ajoute ses textes, son style et sa cadence. Sinon, continuez sans modèle.':'Choisissez d\u2019abord vos photos et vidéos dans l\u2019écran Médias ; vous pourrez ensuite appliquer un modèle ici.';
+  $('bNoTpl').textContent=S.clips.length?(S.tpl?'Revenir au montage':'Continuer sans modèle'):'Choisir mes médias';
   $('bTplNone').hidden=!S.tpl;$('bTplUse').textContent=S.tpl&&S.tpl===S.tsel?'Modèle utilisé · revoir le montage':'Utiliser ce modèle';
-  const i=$('tplInfo');i.hidden=!S.tpl;if(S.tpl)i.textContent='Modèle en cours : '+TPL[S.tpl].n+' (textes fixes, à changer dans l\u2019écran Modèles).';
+  const i=$('tplInfo');i.hidden=!S.tpl;if(S.tpl)i.textContent='Modèle en cours : '+TPL[S.tpl].n+' (textes modifiables dans l\u2019onglet Texte).';
 }
 function tplUse(){
-  const id=S.tsel;if(!id)return;S.tpl=id;const T=TPL[id];
+  const id=S.tsel;if(!id)return;
+  if(!S.clips.length){toast('Choisissez d\u2019abord vos photos et vidéos, puis créez le montage.');go('medias');return;}
+  if(S.tpl!==id)S.tedit={};
+  S.tpl=id;const T=TPL[id];
   if(!S.audio)loadDemo(T.demo);
-  tplUI();
-  if(S.clips.length){applyStyle(T.style);go('montage');}
-  else{go('medias');toast('Modèle « '+T.n+' » choisi. Ajoutez maintenant vos photos et vidéos ('+T.d.replace(/^.*?,\s*/,'')+').');}
+  applyStyle(T.style);tplUI();go('montage');
 }
 
 /* ---------- Styles ---------- */
@@ -1051,7 +1072,7 @@ document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>go(b.dataset.v)
 $('fMedia').onchange=$('fMedia2').onchange=e=>{addFiles(e.target.files);e.target.value='';};
 $('autoMode').onchange=modeUI;$('bAuto').onclick=autoPick;$('bReq').onclick=parseReq;
 $('req').onkeydown=e=>{if(e.key==='Enter')parseReq();};
-$('bBuild').onclick=()=>{buildClips();if(S.tpl)applyStyle(TPL[S.tpl].style);go('montage');analyzeAll();if(!S.audio)toast('Montage créé. Ajoutez une musique pour caler les images sur le rythme.');};
+$('bBuild').onclick=()=>{buildClips();if(S.tpl)applyStyle(TPL[S.tpl].style);go('modeles');analyzeAll();};
 $('bPlay').onclick=()=>{if(exporting)return;if(S.playing)pause();else play();};
 $('seek').oninput=e=>{if(exporting)return;const was=S.playing;pause();S.t=+e.target.value;if(was)play();else showFrame();};
 const cur=()=>S.clips[S.cur];
@@ -1128,14 +1149,14 @@ $('bFitAll').onclick=()=>{const f=cur().fit;S.clips.forEach(c=>c.fit=f);showFram
 THEMES.forEach(th=>{const b=document.createElement('button');b.setAttribute('role','tab');b.textContent=th[1];b.setAttribute('aria-selected',th[0]===S.theme?'true':'false');
   b.onclick=()=>{S.theme=th[0];document.querySelectorAll('#themes button').forEach(x=>x.setAttribute('aria-selected',x===b?'true':'false'));tplGrid();};$('themes').appendChild(b);});
 $('bTplUse').onclick=tplUse;
-$('bTplNone').onclick=()=>{S.tpl=null;S.ov=[];tplUI();if(S.clips.length)showFrame();toast('Modèle retiré : le style reste, les textes du modèle disparaissent.');};
-$('bNoTpl').onclick=()=>go('medias');
+$('bTplNone').onclick=()=>{S.tpl=null;S.ov=[];S.tedit={};tplTextsUI();tplUI();if(S.clips.length)showFrame();toast('Modèle retiré : le style reste, les textes du modèle disparaissent.');};
+$('bNoTpl').onclick=()=>{if(S.clips.length){go('montage');if(!S.audio)toast('Ajoutez une musique pour caler les images sur le rythme.');}else go('medias');};
 loadFonts();
 document.querySelectorAll('#editor .tabs button').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('#editor .tabs button').forEach(x=>x.setAttribute('aria-selected',x===b?'true':'false'));
   ['style','dur','motion','trans','text','adjust'].forEach(n=>{$('p-'+n).hidden=n!==b.dataset.tab;});
 });
-modeUI();go('modeles');
+modeUI();go('medias');
 try{if('serviceWorker' in navigator&&location.protocol==='https:'&&window.top===window)navigator.serviceWorker.register('sw.js').catch(()=>{});}catch(e){}
 </script>
 </body>
