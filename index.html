@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>TempsFort – prototype</title>
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&family=Playfair+Display:wght@700&family=Caveat:wght@700&family=Bebas+Neue&family=Special+Elite&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&family=Playfair+Display:wght@700&family=Caveat:wght@700&family=Bebas+Neue&family=Special+Elite&family=Great+Vibes&family=Permanent+Marker&display=swap" rel="stylesheet">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#101114">
 <link rel="icon" href="icon-192.png">
@@ -59,7 +59,13 @@ input[type=range]{width:100%;height:40px;margin:0;accent-color:var(--ac)}
 #strip button.on{border-color:var(--ac)}
 #strip button span{position:absolute;left:2px;bottom:2px;background:rgba(0,0,0,.75);font-size:11px;padding:0 4px;border-radius:4px}
 nav{position:fixed;left:0;right:0;bottom:0;background:var(--s1);border-top:1px solid var(--bd);display:flex;justify-content:center;padding:6px 6px calc(8px + env(safe-area-inset-bottom))}
-nav button{flex:1;max-width:150px;border:0;background:none;min-height:50px;font-size:14px;color:var(--mu);padding:0}
+nav button{flex:1;max-width:150px;border:0;background:none;min-height:50px;font-size:13px;color:var(--mu);padding:0}
+.tgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:12px 0}
+.tcard{padding:6px 6px 10px;height:auto;text-align:left;line-height:1.25;border-radius:14px;border:2px solid var(--bd)}
+.tcard[aria-pressed=true]{border-color:var(--ac)}
+.tcard canvas{width:100%;display:block;border-radius:9px;margin-bottom:8px}
+.tcard b{display:block;font-size:15px}
+.tcard span{display:block;font-size:12px;color:var(--mu)}
 nav button[aria-current=true]{color:var(--ac);font-weight:700}
 #toast{position:fixed;left:14px;right:14px;bottom:84px;margin:auto;max-width:560px;background:#F2F3F5;color:#101114;border-radius:12px;padding:12px 14px;font-size:15px;display:none;z-index:9}
 progress{width:100%;height:14px;accent-color:var(--ac)}
@@ -82,7 +88,21 @@ video#result{width:100%;max-height:50vh;border-radius:10px;background:#000;margi
   </div>
 </div>
 
-<section id="v-medias">
+<section id="v-modeles" hidden>
+  <p class="mu">Choisissez un modèle : ses textes et son style sont prêts, il ne reste qu'à y mettre vos photos et vidéos.</p>
+  <div class="tabs" id="themes" role="tablist" aria-label="Thèmes de modèles"></div>
+  <div class="card" id="tplCard" hidden>
+    <h2 id="tplName"></h2>
+    <p class="mu" id="tplDesc"></p>
+    <div id="tplVars"></div>
+    <button class="pri" id="bTplUse" style="margin-top:10px">Utiliser ce modèle</button>
+    <button id="bTplNone" style="width:100%;margin-top:8px" hidden>Retirer le modèle du film</button>
+  </div>
+  <div class="tgrid" id="tplGrid"></div>
+  <button id="bNoTpl" style="width:100%">Créer sans modèle</button>
+</section>
+
+<section id="v-medias" hidden>
   <div class="card">
     <h2>1 · Importer</h2>
     <label class="file">Ajouter des photos et vidéos<input id="fMedia" type="file" multiple accept="image/*,video/*"></label>
@@ -154,6 +174,7 @@ video#result{width:100%;max-height:50vh;border-radius:10px;background:#000;margi
       <button role="tab" data-tab="adjust" aria-selected="false">Image</button>
     </div>
     <div class="card panel" id="p-style">
+      <p id="tplInfo" hidden></p>
       <h2>Style suggéré</h2>
       <p id="styleSug"></p>
       <button class="pri" id="bStyleSug">Appliquer la suggestion</button>
@@ -265,7 +286,8 @@ video#result{width:100%;max-height:50vh;border-radius:10px;background:#000;margi
 </section>
 
 <nav aria-label="Étapes">
-  <button data-v="medias" aria-current="true">Médias</button>
+  <button data-v="modeles" aria-current="true">Modèles</button>
+  <button data-v="medias">Médias</button>
   <button data-v="musique">Musique</button>
   <button data-v="montage">Montage</button>
   <button data-v="export">Export</button>
@@ -276,12 +298,71 @@ video#result{width:100%;max-height:50vh;border-radius:10px;background:#000;margi
 "use strict";
 const $=id=>document.getElementById(id);
 const MOIS=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
-const S={bg:'blur',g:{pulse:false,shake:false,flash:false,grain:false,leak:false,bars:false},pattern:'reg',media:[],sel:[],clips:[],audio:null,every:2,fmt:'9:16',res:720,cur:0,playing:false,t:0,view:'medias'};
+const S={tpl:null,tsel:null,tv:{annee:'',lieu:'',prenom:'',prenoms:''},ov:[],theme:'tous',bg:'blur',g:{pulse:false,shake:false,flash:false,grain:false,leak:false,bars:false},pattern:'reg',media:[],sel:[],clips:[],audio:null,every:2,fmt:'9:16',res:720,cur:0,playing:false,t:0,view:'medias'};
 let uid=0,AC=null,src=null,recDest=null,clock0=0,raf=0,onEnded=null,exporting=false,listenSrc=null,outBlob=null,toastT=0;
 const cv=$('cv'),ctx=cv.getContext('2d');
-const FONTS={sys:{n:'Simple',f:'system-ui,-apple-system,"Segoe UI",Roboto,sans-serif',w:700},pop:{n:'Moderne',f:'"Poppins",system-ui,sans-serif',w:700},play:{n:'Élégante',f:'"Playfair Display",Georgia,serif',w:700},cav:{n:'Manuscrite',f:'"Caveat",cursive',w:700},bebas:{n:'Affiche',f:'"Bebas Neue",Impact,sans-serif',w:400},elite:{n:'Machine à écrire',f:'"Special Elite","Courier New",monospace',w:400}};
+const FONTS={sys:{n:'Simple',f:'system-ui,-apple-system,"Segoe UI",Roboto,sans-serif',w:700},pop:{n:'Moderne',f:'"Poppins",system-ui,sans-serif',w:700},play:{n:'Élégante',f:'"Playfair Display",Georgia,serif',w:700},cav:{n:'Manuscrite',f:'"Caveat",cursive',w:700},bebas:{n:'Affiche',f:'"Bebas Neue",Impact,sans-serif',w:400},elite:{n:'Machine à écrire',f:'"Special Elite","Courier New",monospace',w:400},script:{n:'Calligraphie',f:'"Great Vibes","Caveat",cursive',w:400},marker:{n:'Feutre',f:'"Permanent Marker","Caveat",cursive',w:400}};
 const COLORS=[['#FFFFFF','Blanc'],['#FFD84A','Jaune'],['#FFB23E','Ambre'],['#FF6B6B','Corail'],['#7CE0A3','Vert'],['#6EC1FF','Bleu'],['#F3A6FF','Rose'],['#101114','Noir']];
 const FX={none:{n:'Aucun',f:''},bw:{n:'Noir et blanc',f:'grayscale(1) contrast(1.08)'},sepia:{n:'Sépia',f:'sepia(0.85)'},vintage:{n:'Vintage',f:'sepia(0.4) contrast(0.92) saturate(0.8) brightness(1.05)'},warm:{n:'Chaleureux',f:'saturate(1.15)',t:'rgba(255,150,40,0.14)'},cold:{n:'Froid',f:'saturate(0.9)',t:'rgba(60,130,255,0.14)'},vivid:{n:'Éclatant',f:'saturate(1.45) contrast(1.1)'},soft:{n:'Doux',f:'contrast(0.9) brightness(1.08) saturate(0.9)',t:'rgba(255,220,200,0.10)'},drama:{n:'Dramatique',f:'contrast(1.35) saturate(0.75) brightness(0.92)'}};
+const THEMES=[['tous','Tous','#3A3F4A'],['annee','Récap de l\u2019année','#2F5D50'],['anniv','Anniversaires','#8A3B5C'],['fetes','Fêtes','#7A2E2E'],['voyage','Voyages','#2B5878'],['event','Événements','#5B4A7A'],['autres','Autres','#5C5236']];
+const VARS={annee:'Année',lieu:'Lieu ou destination',prenom:'Prénom',prenoms:'Prénoms (ex. Léa & Tom)'};
+const Yl='#FFD84A',Wh='#FFFFFF';
+const P=(t,f,s,c,y,o)=>Object.assign({t,f,s,c,y},o||{});
+const TPL={
+  annee1:{th:'annee',n:'Et voilà l\u2019année',d:'récap chaleureux, 12 à 30 médias',style:'voyage',demo:1,ov:[
+    {at:'start',span:3,pos:'mid',parts:[P('Et voilà…','play',.05,Wh,-.075),P('{annee}','play',.2,Yl,0,{d:.35}),P('quelle année','script',.11,Wh,.075,{d:.8,r:-.07,x:.12})]},
+    {at:.5,span:2,pos:'mid',parts:[P('tant de','play',.05,Wh,-.06),P('bonheur','marker',.15,Wh,.01,{d:.3,r:-.05})]},
+    {at:'end',span:2,pos:'mid',parts:[P('et avec ça…','play',.045,Wh,-.08),P('{annee} se termine','play',.075,Wh,-.02,{d:.4}),P('à l\u2019année prochaine','script',.1,Yl,.06,{d:.9,r:-.05})]}]},
+  annee2:{th:'annee',n:'Mois par mois',d:'un titre à chaque changement de mois',style:'classique',demo:1,auto:'months',autoPos:'mid',autoParts:[P('{mois}','script',.17,Yl,-.01,{r:-.08}),P('moments choisis','play',.042,Wh,.06,{d:.3})],ov:[
+    {at:'start',span:1,pos:'mid',parts:[P('{annee}','bebas',.26,Wh,-.02),P('mois par mois','script',.1,Yl,.075,{d:.4,r:-.05})]},
+    {at:'end',span:1,pos:'mid',parts:[P('Merci','script',.16,Wh,-.03),P('{annee}','bebas',.14,Yl,.06,{d:.4})]}]},
+  annee3:{th:'annee',n:'Une belle année',d:'doux et posé, 10 à 20 médias',style:'doux',demo:0,ov:[
+    {at:'start',span:3,pos:'mid',parts:[P('C\u2019était une','play',.05,Wh,-.07),P('belle','play',.19,Wh,0,{d:.3}),P('année','script',.14,Yl,.07,{d:.7,r:-.06,x:.1})]},
+    {at:'end',span:2,pos:'mid',parts:[P('Bonne nuit','script',.14,Yl,-.02,{r:-.05}),P('{annee}','play',.07,Wh,.06,{d:.5})]}]},
+  anniv1:{th:'anniv',n:'Joyeux anniversaire',d:'festif et rythmé, 10 à 25 médias',style:'dynamique',demo:2,ov:[
+    {at:'start',span:3,pos:'mid',parts:[P('Joyeux','script',.16,Wh,-.08,{r:-.06}),P('ANNIVERSAIRE','bebas',.13,Yl,0,{d:.3}),P('{prenom}','marker',.11,Wh,.08,{d:.7,r:-.04})]},
+    {at:.5,span:2,pos:'mid',parts:[P('que du','play',.05,Wh,-.05),P('BONHEUR','bebas',.2,Wh,.02,{d:.3})]},
+    {at:'end',span:2,pos:'mid',parts:[P('une belle année','play',.055,Wh,-.03),P('qui commence','script',.13,Yl,.04,{d:.4,r:-.05})]}]},
+  anniv2:{th:'anniv',n:'Un an de plus',d:'tendre, 8 à 20 médias',style:'doux',demo:0,ov:[
+    {at:'start',span:3,pos:'mid',parts:[P('Un an de plus,','play',.055,Wh,-.05),P('mille souvenirs','script',.14,Yl,.03,{d:.4,r:-.05})]},
+    {at:'end',span:2,pos:'mid',parts:[P('Joyeux anniversaire','script',.12,Wh,-.02,{r:-.04}),P('{prenom}','play',.08,Yl,.06,{d:.5})]}]},
+  fetes1:{th:'fetes',n:'Joyeuses fêtes',d:'grain et lumière chaude, 10 à 25 médias',style:'rewind',demo:1,ov:[
+    {at:'start',span:3,pos:'mid',parts:[P('Joyeuses','script',.17,Wh,-.07,{r:-.06}),P('FÊTES','play',.17,Yl,.02,{d:.3}),P('— {annee} —','play',.045,Wh,.1,{d:.7})]},
+    {at:.5,span:2,pos:'mid',parts:[P('ensemble','script',.17,Wh,0,{r:-.05})]},
+    {at:'end',span:2,pos:'mid',parts:[P('Meilleurs','play',.06,Wh,-.05),P('vœux','script',.2,Yl,.03,{d:.3,r:-.06})]}]},
+  fetes2:{th:'fetes',n:'Quelle soirée',d:'coupes en rafales, 12 à 30 médias',style:'punch',demo:2,ov:[
+    {at:'start',span:3,pos:'mid',parts:[P('QUELLE','bebas',.16,Wh,-.06),P('SOIRÉE','bebas',.26,Yl,.04,{d:.25})]},
+    {at:.55,span:2,pos:'mid',parts:[P('et ce n\u2019était','play',.05,Wh,-.05),P('que le début','marker',.11,Wh,.02,{d:.3,r:-.04})]},
+    {at:'end',span:2,pos:'mid',parts:[P('on remet ça ?','script',.15,Wh,0,{r:-.05})]}]},
+  voy1:{th:'voyage',n:'Quelques jours à…',d:'carnet de voyage, 10 à 25 médias',style:'voyage',demo:1,ov:[
+    {at:'start',span:3,pos:'top',parts:[P('Quelques jours à…','play',.048,Wh,-.055),P('{lieu}','script',.2,Yl,.02,{d:.35,r:-.09})]},
+    {at:'end',span:2,pos:'mid',parts:[P('à refaire','play',.05,Wh,-.05),P('très vite','script',.16,Yl,.02,{d:.3,r:-.06})]}]},
+  voy2:{th:'voyage',n:'Bienvenue à…',d:'récap de vacances, 10 à 25 médias',style:'classique',demo:1,ov:[
+    {at:'start',span:3,pos:'mid',parts:[P('Bienvenue à','script',.1,Wh,-.085,{r:-.05}),P('{lieu}','play',.13,Wh,-.01,{d:.3,up:1}),P('— VACANCES —','play',.036,Wh,.05,{d:.6}),P('le récap','script',.09,Yl,.12,{d:1,r:-.06})]},
+    {at:'end',span:2,pos:'mid',parts:[P('Fin du voyage,','play',.055,Wh,-.04),P('pas des souvenirs','script',.12,Yl,.03,{d:.4,r:-.05})]}]},
+  voy3:{th:'voyage',n:'… en 10 secondes',d:'très court, 8 à 12 médias, une image par temps',style:'dump',demo:2,ov:[
+    {at:'start',span:999,pos:'mid',parts:[P('{lieu}','script',.2,Wh,-.03,{r:-.08}),P('EN 10 SECONDES','elite',.04,Wh,.045,{d:.4,band:1})]}]},
+  voy4:{th:'voyage',n:'Carnet de route',d:'« Jour 1, Jour 2… » à chaque nouvelle journée',style:'retro',demo:0,auto:'days',autoPos:'bottom',autoParts:[P('Jour {jour}','elite',.075,Wh,0,{band:1})],ov:[
+    {at:'start',span:1,pos:'mid',parts:[P('Carnet','script',.2,Wh,-.04,{r:-.07}),P('DE ROUTE','bebas',.11,Yl,.05,{d:.35}),P('{lieu}','elite',.045,Wh,.11,{d:.7})]}]},
+  ev1:{th:'event',n:'Le plus beau jour',d:'mariage, bandes cinéma, 12 à 30 médias',style:'cine',demo:0,ov:[
+    {at:'start',span:2,pos:'mid',parts:[P('Le plus','play',.055,Wh,-.06),P('beau jour','script',.2,Wh,.02,{d:.35,r:-.06}),P('{prenoms}','play',.05,Yl,.11,{d:.9})]},
+    {at:'end',span:2,pos:'mid',parts:[P('pour toujours','script',.15,Wh,0,{r:-.05})]}]},
+  ev2:{th:'event',n:'Bienvenue',d:'naissance, tout en douceur, 8 à 20 médias',style:'doux',demo:0,ov:[
+    {at:'start',span:3,pos:'mid',parts:[P('Bienvenue','script',.15,Wh,-.05,{r:-.05}),P('{prenom}','play',.13,Yl,.04,{d:.4})]},
+    {at:.5,span:2,pos:'mid',parts:[P('nos premiers','play',.05,Wh,-.045),P('jours','script',.18,Wh,.03,{d:.3,r:-.06})]},
+    {at:'end',span:2,pos:'mid',parts:[P('le début','play',.06,Wh,-.04),P('de tout','script',.18,Yl,.04,{d:.3,r:-.06})]}]},
+  ev3:{th:'event',n:'Bravo !',d:'diplôme, réussite, exploit ; 8 à 20 médias',style:'dynamique',demo:2,ov:[
+    {at:'start',span:3,pos:'mid',parts:[P('BRAVO','bebas',.3,Yl,-.03),P('{prenom}','script',.14,Wh,.07,{d:.35,r:-.06})]},
+    {at:'end',span:2,pos:'mid',parts:[P('on est','play',.05,Wh,-.05),P('fiers de toi','marker',.12,Wh,.02,{d:.3,r:-.04})]}]},
+  au1:{th:'autres',n:'Week-end parfait',d:'escapade, 8 à 20 médias',style:'voyage',demo:1,ov:[
+    {at:'start',span:3,pos:'mid',parts:[P('Juste un','play',.05,Wh,-.075),P('week-end','script',.2,Yl,0,{d:.3,r:-.07}),P('PARFAIT','play',.07,Wh,.085,{d:.7})]}]},
+  au2:{th:'autres',n:'Entre amis',d:'énergique, 12 à 30 médias',style:'punch',demo:2,ov:[
+    {at:'start',span:3,pos:'mid',parts:[P('MES GENS','bebas',.17,Wh,-.05),P('préférés','script',.2,Yl,.045,{d:.3,r:-.07})]},
+    {at:'end',span:2,pos:'mid',parts:[P('à très vite','script',.15,Wh,0,{r:-.05})]}]},
+  au3:{th:'autres',n:'En famille',d:'classique et sobre, 10 à 25 médias',style:'classique',demo:0,ov:[
+    {at:'start',span:3,pos:'mid',parts:[P('La famille,','play',.07,Wh,-.04),P('tout simplement','script',.13,Yl,.04,{d:.4,r:-.05})]}]},
+  au4:{th:'autres',n:'Moments sans filtre',d:'le mois en vrac, une image par temps',style:'dump',demo:2,auto:'months',autoPos:'mid',autoParts:[P('{mois}','script',.17,Yl,-.01,{r:-.08}),P('moments sans filtre','play',.04,Wh,.055,{d:.3})],ov:[]}
+};
 const STYLES={
   punch:{soc:1,n:'Punch',d:'coupes en rafales, zoom et flash sur le temps',trans:['blast','none','whip','none','glitch','none'],motion:['in','out','in'],fx:'vivid',vig:false,tdur:0.3,t:{tfont:'bebas',tcolor:'#FFFFFF',tdeco:'outline',tfx:'hi',tsize:'l',tpos:'mid'},g:{pulse:true,flash:true},pattern:'burst',every:2},
   dump:{soc:1,n:'Photo dump',d:'coupes sèches à chaque temps, sans fioritures',trans:['none'],motion:['none'],fx:'none',vig:false,tdur:0.3,t:{tfont:'sys',tcolor:'#FFFFFF',tdeco:'outline',tfx:'none',tsize:'s',tpos:'bottom'},g:{pulse:true,grain:true},pattern:'reg',every:1},
@@ -457,6 +538,7 @@ function retime(){
     if(isV&&c.autoTrim){const b=bestStart(m,c.dur);if(b!==null)c.trimIn=b;}
     c.start=prev;prev+=c.dur;
   });
+  layoutTpl();
   $('seek').max=Math.max(0.01,total());
   if(S.t>total())S.t=0;
   renderStrip();showFrame();
@@ -669,6 +751,7 @@ function render(t){
   if(G.grain)grain(W,H);
   if(G.bars){const bh=Math.round(H*(W>H?0.11:0.09));ctx.fillStyle='#000';ctx.fillRect(0,0,W,bh);ctx.fillRect(0,H-bh,W,bh);}
   drawText(c,lt);
+  for(const o of S.ov)if(t>=o.t0&&t<o.t1)drawOverlay(ctx,W,H,o,t);
 }
 function syncVideos(t,playing){
   const i=clipAt(t);
@@ -818,6 +901,79 @@ function applySugg(){
   $('suggCard').hidden=true;renderStrip();showFrame();toast(n+' texte(s) ajouté(s) au film.');
 }
 
+/* ---------- Modèles ---------- */
+function tplVal(k){
+  if(k==='annee'){if(S.tv.annee)return S.tv.annee;const src=S.clips.length?S.clips.map(c=>mediaById(c.mid)):S.media;return String(src.length?src[src.length-1].date.getFullYear():new Date().getFullYear());}
+  if(k==='lieu')return S.tv.lieu||'ailleurs';
+  return S.tv[k]||'';
+}
+function tplParts(parts,extra){
+  const out=[];
+  parts.forEach(p=>{let ok=true;const t=p.t.replace(/\{(\w+)\}/g,(m,k)=>{const v=extra&&extra[k]!==undefined?extra[k]:tplVal(k);if(!v)ok=false;return v;});if(ok&&t.trim())out.push(Object.assign({},p,{t:p.up?t.toUpperCase():t}));});
+  return out;
+}
+function layoutTpl(){
+  S.ov=[];const T=TPL[S.tpl],n=S.clips.length;if(!T||!n)return;
+  const add=(a,b,pos,parts)=>{if(!parts.length)return;const t0=S.clips[a].start,t1=S.clips[b].start+S.clips[b].dur;if(S.ov.some(o=>t0<o.t1&&t1>o.t0))return;S.ov.push({t0,t1,pos,parts});};
+  T.ov.forEach(o=>{const span=Math.min(o.span||1,n);let a,b;
+    if(o.at==='start'){a=0;b=span-1;}else if(o.at==='end'){b=n-1;a=n-span;}else{a=Math.min(n-1,Math.max(0,Math.round(o.at*(n-1))));b=Math.min(n-1,a+span-1);}
+    add(a,b,o.pos,tplParts(o.parts));});
+  if(T.auto){
+    const ms=S.clips.map(c=>mediaById(c.mid).date),key=d=>T.auto==='months'?d.getFullYear()*12+d.getMonth():d.getFullYear()*372+d.getMonth()*31+d.getDate();let day=0;
+    ms.forEach((d,i)=>{if(i>0&&key(d)===key(ms[i-1]))return;day++;
+      let b=i;if(i+1<n&&key(ms[i+1])===key(d))b=i+1;
+      add(i,b,T.autoPos||'mid',tplParts(T.autoParts,{mois:cap(MOIS[d.getMonth()]),jour:String(day)}));});
+  }
+}
+function drawOverlay(g,W,H,ov,t){
+  const lt=t-ov.t0,aOut=Math.max(0,Math.min(1,(ov.t1-t)/0.4)),cy=ov.pos==='top'?H*0.24:ov.pos==='bottom'?H*0.76:H*0.45;
+  ov.parts.forEach(p=>{
+    const pt=lt-(p.d||0);if(pt<0)return;
+    const e=1-Math.pow(1-Math.min(1,pt/0.5),3),F=FONTS[p.f]||FONTS.sys;let fs=W*p.s;
+    g.save();g.filter='none';g.font=F.w+' '+fs+'px '+F.f;
+    const tw=g.measureText(p.t).width;if(tw>W*0.9){fs*=W*0.9/tw;g.font=F.w+' '+fs+'px '+F.f;}
+    g.globalAlpha=e*aOut;g.translate(W/2+(p.x||0)*W,cy+(p.y||0)*H+(1-e)*H*0.02);if(p.r)g.rotate(p.r);const k=0.92+0.08*e;g.scale(k,k);
+    g.textAlign='center';g.textBaseline='middle';
+    if(p.band){const bw=g.measureText(p.t).width+fs*0.8;g.fillStyle='rgba(16,17,20,0.74)';g.fillRect(-bw/2,-fs*0.75,bw,fs*1.5);}
+    else{g.shadowColor='rgba(0,0,0,0.6)';g.shadowBlur=fs*0.22;g.shadowOffsetY=fs*0.04;}
+    g.fillStyle=p.c||'#fff';g.fillText(p.t,0,0);g.restore();
+  });
+}
+function tplPreview(cvs,id){
+  const T=TPL[id],g=cvs.getContext('2d'),W=cvs.width,H=cvs.height,th=THEMES.find(x=>x[0]===T.th);
+  g.fillStyle=th?th[2]:'#333';g.fillRect(0,0,W,H);
+  const o=T.ov[0],parts=o?tplParts(o.parts):tplParts(T.autoParts,{mois:'Février',jour:'1'});
+  drawOverlay(g,W,H,{t0:0,t1:1e9,pos:o?o.pos:'mid',parts},100);
+}
+function tplGrid(){
+  const g=$('tplGrid');g.textContent='';
+  Object.keys(TPL).forEach(id=>{const T=TPL[id];if(S.theme!=='tous'&&T.th!==S.theme)return;
+    const b=document.createElement('button');b.className='tcard';b.setAttribute('aria-pressed',S.tsel===id?'true':'false');
+    const c=document.createElement('canvas');c.width=270;c.height=480;c.setAttribute('aria-hidden','true');
+    const n=document.createElement('b');n.textContent=T.n;const d=document.createElement('span');d.textContent=T.d;
+    b.append(c,n,d);b.onclick=()=>tplSelect(id);g.appendChild(b);tplPreview(c,id);});
+}
+function tplSelect(id){
+  S.tsel=id;const T=TPL[id];$('tplCard').hidden=false;$('tplName').textContent=T.n;
+  $('tplDesc').textContent=cap(T.d)+'. Style « '+STYLES[T.style].n+' ». Les textes du modèle sont fixes ; seuls les champs ci-dessous se personnalisent.';
+  const used=new Set();[...T.ov.map(o=>o.parts),T.autoParts||[]].forEach(ps=>ps.forEach(p=>(p.t.match(/\{(\w+)\}/g)||[]).forEach(m=>{const k=m.slice(1,-1);if(VARS[k])used.add(k);})));
+  const box=$('tplVars');box.textContent='';
+  used.forEach(k=>{const l=document.createElement('label');l.textContent=VARS[k];l.htmlFor='tv_'+k;const i=document.createElement('input');i.type='text';i.id='tv_'+k;i.value=S.tv[k];i.placeholder=k==='annee'?tplVal('annee'):k==='lieu'?'Ex. : Annecy':'';
+    i.oninput=()=>{S.tv[k]=i.value.trim();tplGrid();if(S.tpl){layoutTpl();if(S.clips.length&&!S.playing)render(S.t);}};box.append(l,i);});
+  tplGrid();tplUI();window.scrollTo(0,0);
+}
+function tplUI(){
+  $('bTplNone').hidden=!S.tpl;$('bTplUse').textContent=S.tpl&&S.tpl===S.tsel?'Modèle utilisé · revoir le montage':'Utiliser ce modèle';
+  const i=$('tplInfo');i.hidden=!S.tpl;if(S.tpl)i.textContent='Modèle en cours : '+TPL[S.tpl].n+' (textes fixes, à changer dans l\u2019écran Modèles).';
+}
+function tplUse(){
+  const id=S.tsel;if(!id)return;S.tpl=id;const T=TPL[id];
+  if(!S.audio)loadDemo(T.demo);
+  tplUI();
+  if(S.clips.length){applyStyle(T.style);go('montage');}
+  else{go('medias');toast('Modèle « '+T.n+' » choisi. Ajoutez maintenant vos photos et vidéos ('+T.d.replace(/^.*?,\s*/,'')+').');}
+}
+
 /* ---------- Styles ---------- */
 function suggestedStyle(){
   if(!S.audio)return ['classique','pas de musique choisie'];
@@ -834,12 +990,12 @@ function applyStyle(k){
   const st=STYLES[k];if(!st||!S.clips.length)return;let a=0,b=0;
   S.clips.forEach(c=>{const m=mediaById(c.mid);c.trans=st.trans[a++%st.trans.length];c.motion=m.kind==='image'?st.motion[b++%st.motion.length]:'none';c.fx=st.fx;c.vig=st.vig;c.tdur=st.tdur||0.5;Object.assign(c,st.t);});
   S.g={pulse:false,shake:false,flash:false,grain:false,leak:false,bars:false};Object.assign(S.g,st.g||{});
-  S.pattern=st.pattern||'reg';if(st.every)S.every=st.every;
+  S.pattern=st.pattern||'reg';S.every=st.every||2;
   S.style=k;const i=S.cur;retime();S.cur=Math.min(i,S.clips.length-1);renderStrip();showFrame();toast('Style « '+st.n+' » appliqué à tout le film.');
 }
 function loadFonts(){
   if(!document.fonts||!document.fonts.load)return;
-  Object.keys(FONTS).forEach(k=>{if(k==='sys')return;const F=FONTS[k];document.fonts.load(F.w+' 40px '+F.f.split(',')[0]).then(()=>{if(!S.playing&&S.clips.length)render(S.t);}).catch(()=>{});});
+  Object.keys(FONTS).forEach(k=>{if(k==='sys')return;const F=FONTS[k];document.fonts.load(F.w+' 40px '+F.f.split(',')[0]).then(()=>{if(!S.playing&&S.clips.length)render(S.t);if(S.view==='modeles')tplGrid();}).catch(()=>{});});
 }
 
 /* ---------- Export ---------- */
@@ -885,7 +1041,8 @@ async function saveOut(){
 /* ---------- Interface ---------- */
 function stageUI(){$('stage').hidden=!(S.clips.length&&(S.view==='montage'||S.view==='export'));}
 function go(v){
-  S.view=v;['medias','musique','montage','export'].forEach(n=>{$('v-'+n).hidden=n!==v;});
+  S.view=v;['modeles','medias','musique','montage','export'].forEach(n=>{$('v-'+n).hidden=n!==v;});
+  if(v==='modeles'){tplGrid();tplUI();}
   document.querySelectorAll('nav button').forEach(b=>b.setAttribute('aria-current',b.dataset.v===v?'true':'false'));
   if(v!=='montage'&&v!=='export'&&!exporting)pause();
   stageUI();if(!$('stage').hidden)showFrame();window.scrollTo(0,0);
@@ -894,7 +1051,7 @@ document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>go(b.dataset.v)
 $('fMedia').onchange=$('fMedia2').onchange=e=>{addFiles(e.target.files);e.target.value='';};
 $('autoMode').onchange=modeUI;$('bAuto').onclick=autoPick;$('bReq').onclick=parseReq;
 $('req').onkeydown=e=>{if(e.key==='Enter')parseReq();};
-$('bBuild').onclick=()=>{buildClips();go('montage');analyzeAll();if(!S.audio)toast('Montage créé. Ajoutez une musique pour caler les images sur le rythme.');};
+$('bBuild').onclick=()=>{buildClips();if(S.tpl)applyStyle(TPL[S.tpl].style);go('montage');analyzeAll();if(!S.audio)toast('Montage créé. Ajoutez une musique pour caler les images sur le rythme.');};
 $('bPlay').onclick=()=>{if(exporting)return;if(S.playing)pause();else play();};
 $('seek').oninput=e=>{if(exporting)return;const was=S.playing;pause();S.t=+e.target.value;if(was)play();else showFrame();};
 const cur=()=>S.clips[S.cur];
@@ -917,12 +1074,13 @@ function moveClip(d){const i=S.cur,j=i+d;if(j<0||j>=S.clips.length)return;const 
 $('bEarlier').onclick=()=>moveClip(-1);$('bLater').onclick=()=>moveClip(1);
 $('bRemove').onclick=()=>{pause();S.clips.splice(S.cur,1);S.sel=S.clips.map(x=>x.mid);S.cur=Math.max(0,Math.min(S.cur,S.clips.length-1));S.t=0;retime();renderGrid();};
 $('bSugg').onclick=suggest;$('bSuggApply').onclick=applySugg;
-document.querySelectorAll('[data-demo]').forEach(b=>b.onclick=()=>{
-  const a=ac();if(!a)return toast('Audio non disponible dans ce navigateur.');
+function loadDemo(k){
+  const a=ac();if(!a){toast('Audio non disponible dans ce navigateur.');return false;}
   if(a.state==='suspended')a.resume().catch(()=>{});
-  const k=+b.dataset.demo,bpm=[90,112,126][k],r=synthTrack(a,bpm,k,72);
-  setAudio({buffer:r.buffer,beats:r.beats,bpm,name:'Démo '+b.textContent});
-});
+  const bpm=[90,112,126][k],r=synthTrack(a,bpm,k,72);
+  setAudio({buffer:r.buffer,beats:r.beats,bpm,name:'Démo '+['Calme 90','Pop 112','Vif 126'][k]});return true;
+}
+document.querySelectorAll('[data-demo]').forEach(b=>b.onclick=()=>loadDemo(+b.dataset.demo));
 $('fAudio').onchange=$('fAudio2').onchange=async e=>{
   const f=e.target.files[0];e.target.value='';if(!f)return;const a=ac();if(!a)return toast('Audio non disponible dans ce navigateur.');
   $('aInfo').textContent='Analyse du rythme en cours…';
@@ -967,12 +1125,17 @@ $('iAutoTrim').onchange=e=>{const c=cur();c.autoTrim=e.target.checked;if(c.autoT
 $('iFit').onchange=e=>{cur().fit=e.target.value;showFrame();};
 $('gBg').onchange=e=>{S.bg=e.target.value;showFrame();};
 $('bFitAll').onclick=()=>{const f=cur().fit;S.clips.forEach(c=>c.fit=f);showFrame();toast('Cadrage appliqué à toutes les images.');};
+THEMES.forEach(th=>{const b=document.createElement('button');b.setAttribute('role','tab');b.textContent=th[1];b.setAttribute('aria-selected',th[0]===S.theme?'true':'false');
+  b.onclick=()=>{S.theme=th[0];document.querySelectorAll('#themes button').forEach(x=>x.setAttribute('aria-selected',x===b?'true':'false'));tplGrid();};$('themes').appendChild(b);});
+$('bTplUse').onclick=tplUse;
+$('bTplNone').onclick=()=>{S.tpl=null;S.ov=[];tplUI();if(S.clips.length)showFrame();toast('Modèle retiré : le style reste, les textes du modèle disparaissent.');};
+$('bNoTpl').onclick=()=>go('medias');
 loadFonts();
-document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
-  document.querySelectorAll('.tabs button').forEach(x=>x.setAttribute('aria-selected',x===b?'true':'false'));
+document.querySelectorAll('#editor .tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#editor .tabs button').forEach(x=>x.setAttribute('aria-selected',x===b?'true':'false'));
   ['style','dur','motion','trans','text','adjust'].forEach(n=>{$('p-'+n).hidden=n!==b.dataset.tab;});
 });
-modeUI();
+modeUI();go('modeles');
 try{if('serviceWorker' in navigator&&location.protocol==='https:'&&window.top===window)navigator.serviceWorker.register('sw.js').catch(()=>{});}catch(e){}
 </script>
 </body>
