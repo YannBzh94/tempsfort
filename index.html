@@ -18,7 +18,10 @@ h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--mu);
 p{margin:6px 0;line-height:1.4}
 .mu{color:var(--mu);font-size:14px}
 button,select,input[type=text],input[type=month],input[type=date]{font:inherit;color:var(--tx);background:var(--s1);border:1px solid var(--bd);border-radius:12px;min-height:46px;padding:0 14px}
-input[type=text],input[type=month],input[type=date],select{width:100%}
+input[type=text],input[type=month],input[type=date],select,textarea{width:100%}
+textarea{font:inherit;color:var(--tx);background:var(--s2);border:1px solid var(--bd);border-radius:12px;padding:10px 14px;resize:vertical}
+.bl{margin:8px 0;padding:8px 12px;border-radius:10px;background:var(--bg)}
+.bl b{display:block;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--mu);font-weight:600}
 button{cursor:pointer}
 button.pri{background:var(--ac);color:#101114;border:0;font-weight:600;width:100%;min-height:52px}
 button:disabled{opacity:.45}
@@ -87,6 +90,35 @@ video#result{width:100%;max-height:50vh;border-radius:10px;background:#000;margi
     <span id="time" class="mu" style="flex:0 0 86px;text-align:right">0:00 / 0:00</span>
   </div>
 </div>
+
+<section id="v-idee" hidden>
+  <div class="card">
+    <h2>Votre film en quelques mots</h2>
+    <label for="brief">De quoi parle ce film ? Une ou deux phrases suffisent.</label>
+    <textarea id="brief" rows="3" placeholder="Ex. : les 40 ans de Léa, une soirée surprise avec toute la famille"></textarea>
+    <button class="pri" id="bBrief" style="margin-top:10px">Proposer des textes</button>
+  </div>
+  <div class="card" id="briefRes" hidden>
+    <h2>Proposition</h2>
+    <p class="mu" id="briefInfo"></p>
+    <div class="row">
+      <div><label for="bLieu">Lieu</label><input id="bLieu" type="text"></div>
+      <div><label for="bPrenom">Prénom(s)</label><input id="bPrenom" type="text"></div>
+    </div>
+    <div class="row">
+      <div><label for="bAge">Âge</label><input id="bAge" type="text" inputmode="numeric"></div>
+      <div><label for="bAnnee">Année</label><input id="bAnnee" type="text" inputmode="numeric"></div>
+    </div>
+    <div class="row" style="align-items:flex-start;margin-top:12px">
+      <canvas id="briefCv" width="270" height="480" aria-hidden="true" style="flex:0 0 42%;width:42%;border-radius:10px"></canvas>
+      <div id="briefLines"></div>
+    </div>
+    <button id="bBriefAlt" style="width:100%;margin-top:10px">Autre proposition</button>
+    <button class="pri" id="bBriefUse" style="margin-top:8px">Utiliser ces textes</button>
+    <p class="mu">Chaque ligne reste modifiable ensuite, dans Montage › Texte.</p>
+  </div>
+  <button id="bBriefSkip" style="width:100%">Passer cette étape</button>
+</section>
 
 <section id="v-modeles" hidden>
   <p class="mu" id="tplIntro"></p>
@@ -292,6 +324,7 @@ video#result{width:100%;max-height:50vh;border-radius:10px;background:#000;margi
 
 <nav aria-label="Étapes">
   <button data-v="medias" aria-current="true">Médias</button>
+  <button data-v="idee">Idée</button>
   <button data-v="modeles">Modèles</button>
   <button data-v="musique">Musique</button>
   <button data-v="montage">Montage</button>
@@ -1000,6 +1033,81 @@ function tplUse(){
   applyStyle(T.style);tplUI();go('montage');
 }
 
+/* ---------- Idée : textes sur mesure ---------- */
+const normTxt=x=>x.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+const B_THEMES=[
+  ['mariage','Mariage',/mariage|noces|maries|epous/,'cine'],
+  ['naissance','Naissance',/naissance|bebe|nouveau-ne|premiers jours/,'doux'],
+  ['anniv','Anniversaire',/anniversaire|anniv|\d+\s*ans/,'dynamique'],
+  ['reussite','Réussite',/diplome|bravo|reussite|marathon|victoire|examen|concours|\bbac\b/,'dynamique'],
+  ['fetes','Fêtes',/noel|reveillon|nouvel an|\bfetes?\b|soiree/,'rewind'],
+  ['voyage','Voyage',/voyage|vacances|sejour|week-?end|road ?trip|escapade|rando|\bski\b|plage|croisiere/,'voyage'],
+  ['annee','Récap de l\u2019année',/annee|recap|retrospective|bilan/,'voyage'],
+  ['amis','Entre amis',/\bamis?\b|amies|copains|copines|potes|bande/,'punch'],
+  ['famille','Famille',/famille|enfants|parents|mamie|papi|cousin|freres?|soeurs?/,'classique'],
+  ['souvenirs','Souvenirs',/./,'classique']];
+const B_BANK={
+  voyage:[[['Quelques jours','{alieu|ailleurs}'],['rien à faire,','tout à voir'],['on y retourne','quand ?']],[['{lieu|Le voyage}','sans filtre'],['le temps','s\u2019arrête'],['à refaire','très vite']],[['Direction','{lieu|l\u2019ailleurs}'],['plein','les yeux'],['fin du voyage,','pas des souvenirs']]],
+  anniv:[[['Joyeux anniversaire','{prenom|!}'],{a:['{age} ans,','et alors ?'],b:['que du','bonheur']},['une belle année','commence']],[['{age} ans de plus||Un an de plus','{prenom}'],['mille','souvenirs'],['et ce n\u2019est','que le début']],[['C\u2019est ta','journée'],['on t\u2019aime','{prenom|fort}'],['à l\u2019année','prochaine']]],
+  mariage:[[['Le plus','beau jour','{prenom}'],['oui,','pour la vie'],['pour','toujours']],[['Ils se sont dit','oui'],['tant','d\u2019amour'],['et ce n\u2019est','que le début']]],
+  naissance:[[['Bienvenue','{prenom|petit cœur}'],['nos premiers','jours'],['le début','de tout']],[['Et soudain,','toi'],['si petit,','si grand'],['notre plus','belle histoire']]],
+  fetes:[[['Joyeuses','fêtes','{annee}'],['ensemble'],['meilleurs','vœux']],[['Quelle','soirée'],['que du','bonheur'],['on remet ça ?']]],
+  annee:[[['Et voilà','{annee|l\u2019année}'],['tant de','bonheur'],['à l\u2019année','prochaine']],[['{annee|L\u2019année}','en images'],['des hauts,','des très hauts'],['merci','{annee|pour tout}']]],
+  amis:[[['Mes gens','préférés'],['les mêmes,','en mieux'],['à très','vite']],[['Toujours','ensemble'],['fous rires','garantis'],['on remet ça ?']]],
+  famille:[[['La famille,','tout simplement'],['nos petits','bonheurs'],['rien de plus','précieux']],[['Chez','nous'],['le bruit,','les rires'],['et on','recommence']]],
+  reussite:[[['Bravo','{prenom|!}'],['tu l\u2019as','fait'],['on est','fiers de toi']],[['Mission','accomplie'],['du travail,','du cœur'],['bravo','{prenom|à toi}']]],
+  souvenirs:[[['Nos plus','beaux moments'],['instants','choisis'],['à garder','précieusement']],[['Juste','nous'],['et le temps','s\u2019arrête'],['à suivre…']]]
+};
+const B_STOP=/^(Noël|Pâques|Janvier|Février|Mars|Avril|Mai|Juin|Juillet|Août|Septembre|Octobre|Novembre|Décembre|Lundi|Mardi|Mercredi|Jeudi|Vendredi|Samedi|Dimanche)$/i;
+function briefParse(txt){
+  const t=' '+txt.trim()+' ',low=normTxt(t),o={lieu:'',prenom:'',age:'',annee:''};
+  const y=t.match(/(?:^|\D)((?:19|20)\d\d)(?:\D|$)/);if(y)o.annee=y[1];
+  const a=low.match(/(?:^|\D)(\d{1,3})\s*ans(?:[^a-z]|$)/);if(a)o.age=a[1];
+  const pl=t.match(/[\s,;(](à|en|au|aux)\s+([A-ZÀ-Ý][A-Za-zÀ-ÿ\u2019'-]*(?:[ -][A-ZÀ-Ý][A-Za-zÀ-ÿ\u2019'-]*){0,2})/);if(pl&&!B_STOP.test(pl[2])){o.lieu=pl[2];o.prep=pl[1];}
+  const nm=t.match(/[\s,;(](?:de|pour|avec)\s+([A-ZÀ-Ý][a-zà-ÿ-]+(?:\s(?:et|&)\s[A-ZÀ-Ý][a-zà-ÿ-]+)?)/)||t.match(/[\s,;(]d[\u2019']([A-ZÀ-Ý][a-zà-ÿ-]+)/);if(nm&&!B_STOP.test(nm[1])&&nm[1]!==o.lieu)o.prenom=nm[1];
+  let th=B_THEMES.find(x=>x[2].test(low));
+  if(th[0]==='souvenirs'&&o.lieu)th=B_THEMES.find(x=>x[0]==='voyage');
+  let style=th[3];
+  if(/nostalg|retro|autrefois|a l\u2019ancienne/.test(low))style='rewind';
+  else if(/doux|tendre|emouv|calme|poetique|sobre/.test(low))style='doux';
+  else if(/drole|fun|dynamique|rythm|energi|festif|delire/.test(low))style='punch';
+  return {theme:th[0],themeName:th[1],style,vals:o};
+}
+function briefLines(){
+  const B=S.brief,bank=B_BANK[B.theme],v=bank[B.variant%bank.length],vals=Object.assign({},B.vals,{alieu:B.vals.lieu?(B.vals.prep||'à')+' '+B.vals.lieu:''});
+  const one=str=>{let ok=true;const t=str.replace(/\{(\w+)(?:\|([^}]*))?\}/g,(m,k,fb)=>{const val=vals[k]||(fb!==undefined?fb:'');if(!val&&fb===undefined)ok=false;return val;}).replace(/\s+/g,' ').trim();return ok&&t&&t!=='!'?t:null;};
+  const line=l=>{for(const alt of l.split('||')){const r=one(alt);if(r)return r;}return null;};
+  return v.map(block=>{
+    if(!Array.isArray(block)){const A=block.a.map(line);return A.every(Boolean)?A:block.b.map(line).filter(Boolean);}
+    return block.map(line).filter(Boolean);
+  }).filter(b=>b.length);
+}
+function briefBuild(){
+  const B=S.brief,blocks=briefLines(),punchy=B.style==='punch'||B.style==='dynamique',ats=blocks.length===1?['start']:blocks.length===2?['start','end']:['start',.5,'end'];
+  const mk=L=>punchy?(L.length===1?[P(L[0],'bebas',.19,Yl,0,{up:1})]:[P(L[0],'bebas',.12,Wh,-.06,{up:1}),P(L[1],'script',.19,Yl,.03,{d:.3,r:-.06})].concat(L[2]?[P(L[2],'play',.05,Wh,.11,{d:.7})]:[]))
+    :(L.length===1?[P(L[0],'script',.17,Yl,0,{r:-.05})]:[P(L[0],'play',.055,Wh,-.06),P(L[1],'script',.18,Yl,.02,{d:.35,r:-.06})].concat(L[2]?[P(L[2],'play',.05,Wh,.1,{d:.8})]:[]));
+  TPL.perso={th:'perso',n:'Sur mesure',d:'textes proposés d\u2019après votre description',style:B.style,demo:{doux:0,cine:0,classique:0,retro:0,nb:0}[B.style]!==undefined?0:(B.style==='punch'||B.style==='dynamique'||B.style==='dump')?2:1,
+    ov:blocks.map((L,i)=>({at:ats[i],span:i===0?3:2,pos:'mid',parts:mk(L)}))};
+  return blocks;
+}
+function briefUI(){
+  const B=S.brief;if(!B)return;const blocks=briefBuild(),words=blocks.reduce((n,b)=>n+b.join(' ').split(/\s+/).length,0);
+  $('briefRes').hidden=false;
+  $('briefInfo').textContent='Thème reconnu : '+B.themeName+' · style '+STYLES[B.style].n+' · '+words+' mots en '+blocks.length+' textes. Corrigez les champs si besoin.';
+  const box=$('briefLines');box.textContent='';
+  blocks.forEach((L,i)=>{const d=document.createElement('div');d.className='bl';const h=document.createElement('b');h.textContent=blocks.length===1?'Ouverture':i===0?'Ouverture':i===blocks.length-1?'Fin':'Milieu';d.appendChild(h);
+    L.forEach(l=>{const sp=document.createElement('div');sp.textContent=l;d.appendChild(sp);});box.appendChild(d);});
+  tplPreview($('briefCv'),'perso');
+}
+function briefGo(){
+  const txt=$('brief').value.trim();if(!txt){toast('Décrivez votre film en une phrase, ou passez cette étape.');return;}
+  const r=briefParse(txt);
+  if(!r.vals.annee&&r.theme==='annee')r.vals.annee=tplVal('annee');
+  S.brief={theme:r.theme,themeName:r.themeName,style:r.style,vals:r.vals,variant:0};
+  $('bLieu').value=r.vals.lieu;$('bPrenom').value=r.vals.prenom;$('bAge').value=r.vals.age;$('bAnnee').value=r.vals.annee;
+  briefUI();
+}
+
 /* ---------- Styles ---------- */
 function suggestedStyle(){
   if(!S.audio)return ['classique','pas de musique choisie'];
@@ -1067,7 +1175,7 @@ async function saveOut(){
 /* ---------- Interface ---------- */
 function stageUI(){$('stage').hidden=!(S.clips.length&&(S.view==='montage'||S.view==='export'));}
 function go(v){
-  S.view=v;['modeles','medias','musique','montage','export'].forEach(n=>{$('v-'+n).hidden=n!==v;});
+  S.view=v;['idee','modeles','medias','musique','montage','export'].forEach(n=>{$('v-'+n).hidden=n!==v;});
   if(v==='modeles'){tplGrid();tplUI();}
   document.querySelectorAll('nav button').forEach(b=>b.setAttribute('aria-current',b.dataset.v===v?'true':'false'));
   if(v!=='montage'&&v!=='export'&&!exporting)pause();
@@ -1077,7 +1185,7 @@ document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>go(b.dataset.v)
 $('fMedia').onchange=$('fMedia2').onchange=e=>{addFiles(e.target.files);e.target.value='';};
 $('autoMode').onchange=modeUI;$('bAuto').onclick=autoPick;$('bReq').onclick=parseReq;
 $('req').onkeydown=e=>{if(e.key==='Enter')parseReq();};
-$('bBuild').onclick=()=>{buildClips();if(S.tpl)applyStyle(TPL[S.tpl].style);go('modeles');analyzeAll();};
+$('bBuild').onclick=()=>{buildClips();if(S.tpl)applyStyle(TPL[S.tpl].style);go('idee');analyzeAll();};
 $('bPlay').onclick=()=>{if(exporting)return;if(S.playing)pause();else play();};
 $('seek').oninput=e=>{if(exporting)return;const was=S.playing;pause();S.t=+e.target.value;if(was)play();else showFrame();};
 const cur=()=>S.clips[S.cur];
@@ -1154,6 +1262,11 @@ $('bFitAll').onclick=()=>{const f=cur().fit;S.clips.forEach(c=>c.fit=f);showFram
 THEMES.forEach(th=>{const b=document.createElement('button');b.setAttribute('role','tab');b.textContent=th[1];b.setAttribute('aria-selected',th[0]===S.theme?'true':'false');
   b.onclick=()=>{S.theme=th[0];document.querySelectorAll('#themes button').forEach(x=>x.setAttribute('aria-selected',x===b?'true':'false'));tplGrid();};$('themes').appendChild(b);});
 $('bTplUse').onclick=tplUse;
+$('bBrief').onclick=briefGo;
+[['bLieu','lieu'],['bPrenom','prenom'],['bAge','age'],['bAnnee','annee']].forEach(x=>{$(x[0]).oninput=e=>{if(!S.brief)return;S.brief.vals[x[1]]=e.target.value.trim();briefUI();};});
+$('bBriefAlt').onclick=()=>{if(!S.brief)return;S.brief.variant++;briefUI();};
+$('bBriefUse').onclick=()=>{if(!S.brief)return;if(!S.clips.length){toast('Choisissez d\u2019abord vos photos et vidéos, puis créez le montage.');go('medias');return;}briefBuild();S.tedit={};S.tpos={};S.tposAll='';S.tpl=null;S.tsel='perso';tplUse();};
+$('bBriefSkip').onclick=()=>go('modeles');
 $('bTplNone').onclick=()=>{S.tpl=null;S.ov=[];S.tedit={};S.tpos={};S.tposAll='';tplTextsUI();tplUI();if(S.clips.length)showFrame();toast('Modèle retiré : le style reste, les textes du modèle disparaissent.');};
 $('bNoTpl').onclick=()=>{if(S.clips.length){go('montage');if(!S.audio)toast('Ajoutez une musique pour caler les images sur le rythme.');}else go('medias');};
 loadFonts();
